@@ -46,8 +46,12 @@ const Tile = {
     LaserEmissorW: 20,
     LaserEmissorD: 21,
     LaserEmissorA: 22,
-    LaserEmissorS: 23
+    LaserEmissorS: 23,
 
+    PortalW: 24,
+    PortalD: 25,
+    PortalA: 26,
+    PortalS: 27
 } as const;
 
 /////////////////////
@@ -84,7 +88,7 @@ export class GameScene extends Phaser.Scene {
         return this.entities.find(entity => entity.pushable === true && entity.x === x && entity.y === y);
     }
     private getMirrorAt(x: number, y: number): Entity | undefined {
-        return this.entities.find(entity => entity.pushable === true && entity.x === x && entity.y === y && entity.type === "mirror");
+        return this.entities.find(entity => entity.x === x && entity.y === y && entity.type === "mirror");
     }
     
     private addLaser(x: number, y: number, dir: number) {
@@ -182,6 +186,17 @@ export class GameScene extends Phaser.Scene {
         return false;
     }
 
+    private isPortal(x: number, y: number, dir: number): boolean {
+        if (this.entities.find(entity => entity.type === "portal" && entity.x === x && entity.y === y && dir === dir)) {
+            return true;
+        }
+        return false;
+    }
+
+    private findPair(x: number, y: number,): Entity | undefined {
+        return (this.entities.find(entity => entity.type === "portal" && !(entity.x === x && entity.y === y)))
+    }
+
     private winConditionsMet(): boolean {
         const goals = this.entities.filter(entity => entity.type === "goal");
         for (const goal of goals) {
@@ -238,12 +253,34 @@ export class GameScene extends Phaser.Scene {
         }
     }
 
-    private updatePosition(dx: number, dy: number) {
+    private updatePosition(dx: number, dy: number, dir: number) {
         const player = this.entities.find(entity => entity.type === "player");
         const newX = player.x + dx;
         const newY = player.y + dy;
         this.history.push({entities: this.entities.map(entity => ({type: entity.type, x: entity.x, y: entity.y, dir: entity.dir}))
         });
+
+        if (this.isPortal(newX, newY, dir)) {
+            const portal = this.findPair(newX, newY);
+            player.x = portal.x;
+            player.y = portal.y;
+            player.dir = portal.dir;
+            player.sprite.setPosition(this.offsetX + player.x * 64, this.offsetY + player.y * 64);
+            switch(portal.dir) {
+                case 0:
+                    this.updatePosition(0, -1, 2);
+                    break;
+                case 1:
+                    this.updatePosition(1, 0, 3);
+                    break;
+                case 2:
+                    this.updatePosition(0, 1, 0);
+                    break;
+                case 3:
+                    this.updatePosition(-1, 0, 1);
+                    break;
+            }
+        }
 
         if (this.isWall(newX, newY)) {
             return;
@@ -304,10 +341,11 @@ export class GameScene extends Phaser.Scene {
         this.rKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.R);
         this.zKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.Z);
         const level = this.cache.text.get(`level${this.levelNumber}`);
-        const [staticLayer, dynamicLayer, laserLayer] = level.split("^");
+        const [staticLayer, dynamicLayer, laserLayer, portalLayer] = level.split("^");
         this.staticRows = staticLayer.trim().split("\n");
         const dynamicRows = dynamicLayer.trim().split("\n");
         const laserRows = laserLayer.trim().split("\n");
+        const portalRows = portalLayer.trim().split("\n");
         this.offsetX = (864 - this.staticRows[0].length * 64) / 2;
         this.offsetY = (664 - this.staticRows.length * 64) / 2;
 
@@ -511,6 +549,57 @@ export class GameScene extends Phaser.Scene {
                 }
             }
         }
+        for (let y = 0; y<portalRows.length; y++) {
+            for (let x = 0; x<portalRows[y].length; x++){
+                const thistile = portalRows[y][x];
+                switch(thistile) {
+                    case "w":
+                        this.entities.push ({
+                        type: "portal",
+                        x: x,
+                        y: y,
+                        dir: 0,
+                        emitting: 4,
+                        pushable: false,
+                        sprite: this.add.sprite(this.offsetX+x*64, this.offsetY+y*64, "tiles", Tile.PortalW).setScale(2)
+                        });
+                        break;
+                    case "a":
+                        this.entities.push ({
+                        type: "portal",
+                        x: x,
+                        y: y,
+                        dir: 3,
+                        emitting: 4,
+                        pushable: false,
+                        sprite: this.add.sprite(this.offsetX+x*64, this.offsetY+y*64, "tiles", Tile.PortalA).setScale(2)
+                        });
+                        break;
+                    case "s":
+                        this.entities.push ({
+                        type: "portal",
+                        x: x,
+                        y: y,
+                        dir: 2,
+                        emitting: 4,
+                        pushable: false,
+                        sprite: this.add.sprite(this.offsetX+x*64, this.offsetY+y*64, "tiles", Tile.PortalS).setScale(2)
+                        });
+                        break;
+                    case "d":
+                        this.entities.push ({
+                        type: "portal",
+                        x: x,
+                        y: y,
+                        dir: 1,
+                        emitting: 4,
+                        pushable: false,
+                        sprite: this.add.sprite(this.offsetX+x*64, this.offsetY+y*64, "tiles", Tile.PortalD).setScale(2)
+                        });
+                        break;
+                }
+            }
+        }
         this.cursors = this.input.keyboard!.createCursorKeys();
         this.raycast();
     }
@@ -521,7 +610,7 @@ export class GameScene extends Phaser.Scene {
 
     update() {
         if (Phaser.Input.Keyboard.JustDown(this.cursors.left!)) {
-            this.updatePosition(-1, 0);
+            this.updatePosition(-1, 0, 1);
             for (const laser of this.lasers) {
                 laser.destroy();
             }
@@ -531,7 +620,7 @@ export class GameScene extends Phaser.Scene {
         }
 
         if (Phaser.Input.Keyboard.JustDown(this.cursors.right!)) {
-            this.updatePosition(1, 0);
+            this.updatePosition(1, 0, 3);
             for (const laser of this.lasers) {
                 laser.destroy();
             }
@@ -541,7 +630,7 @@ export class GameScene extends Phaser.Scene {
         }
 
         if (Phaser.Input.Keyboard.JustDown(this.cursors.up!)) {
-            this.updatePosition(0, -1);
+            this.updatePosition(0, -1, 2);
             for (const laser of this.lasers) {
                 laser.destroy();
             }
@@ -551,7 +640,7 @@ export class GameScene extends Phaser.Scene {
         }
 
         if (Phaser.Input.Keyboard.JustDown(this.cursors.down!)) {
-            this.updatePosition(0, 1);
+            this.updatePosition(0, 1, 0);
             for (const laser of this.lasers) {
                 laser.destroy();
             }
