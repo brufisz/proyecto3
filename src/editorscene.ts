@@ -20,6 +20,10 @@ export class EditorScene extends Phaser.Scene {
 
     private tileVacio: number = 1;
 
+    private undoHistory: number[][][] = [];
+    private redoHistory: number[][][] = [];
+    private lastBoardState: number[][] = [];
+
     private selectTool: number  = 4;
     private pasteTool: number = 30;
 
@@ -109,6 +113,7 @@ export class EditorScene extends Phaser.Scene {
 
         this.input.on("pointerup", (mouse: Phaser.Input.Pointer) => {
           this.updateHoveredCell(mouse.worldX, mouse.worldY);
+          this.saveIfChanged();
 
           if (this.arrastrandoSeleccion) {
             if (this.puedePegarSeleccion()) {
@@ -273,6 +278,14 @@ export class EditorScene extends Phaser.Scene {
               this.borrarSeleccion();
             });
 
+            this.input.keyboard?.on("keydown-Z", () => {
+              this.undo();
+            });
+
+            this.input.keyboard?.on("keydown-Y", () => {
+              this.redo();
+            });
+
             this.vistaPegado = this.add.rectangle(0, 0, 1, 1);
             this.vistaPegado.setOrigin(0);
             this.vistaPegado.setFillStyle(0xffffff, 0.25);
@@ -280,6 +293,7 @@ export class EditorScene extends Phaser.Scene {
             this.vistaPegado.setVisible(false);
             this.vistaPegado.setDepth(10);
 
+            this.lastBoardState = this.getBoardState();
 
       }
       private updateHoveredCell(pointerX: number, pointerY: number): void {
@@ -576,4 +590,86 @@ export class EditorScene extends Phaser.Scene {
     return (inicioX >= 0 && inicioY >= 0 && inicioX + anchoSeleccion <= this.columns && inicioY + altoSeleccion <= this.rows
     );
   }
+
+  private getBoardState(): number[][] {
+    const state: number[][] = [];
+    for (let row = 0; row < this.rows; row++) {
+      const savedRow: number[] = [];
+      for (let column = 0; column < this.columns;column++) {
+        const tile = this.mapa.getTileAt(
+          column,
+          row,
+          false,
+          this.tablero,
+        );
+        savedRow.push(tile?.index ?? -1);
+      }
+      state.push(savedRow);
+    }
+    return state;
+  }
+
+  private restoreBoardState(state: number[][]): void {
+    for (let row = 0; row < this.rows; row++) {
+      for (let column = 0; column < this.columns; column++) {
+        const tileIndex = state[row][column];
+        this.tablero.putTileAt(
+          tileIndex,
+          column,
+          row,
+          true,
+        );
+      }
+    }
+  }
+
+private statesAreEqual(firstState: number[][], secondState: number[][]): boolean {
+  if (firstState.length !== secondState.length) {
+    return false;
+  }
+  for (let row = 0; row < this.rows; row++) {
+    for (let column = 0;column < this.columns; column++) {
+      if (firstState[row][column] !== secondState[row][column]) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+private saveIfChanged(): void {
+  const currentState = this.getBoardState();
+  if (this.statesAreEqual(this.lastBoardState, currentState)) {
+    return;
+  }
+  this.undoHistory.push(this.lastBoardState);
+  this.redoHistory = [];
+  this.lastBoardState = currentState;
+  if (this.undoHistory.length > 100) {
+    this.undoHistory.shift();
+  }
+}
+
+private undo(): void {
+  const previousState = this.undoHistory.pop();
+  if (!previousState) {
+    return;
+  }
+  this.redoHistory.push(this.getBoardState());
+  this.restoreBoardState(previousState);
+  this.lastBoardState = previousState;
+  this.quitarSeleccion();
+}
+
+private redo(): void {
+  const nextState = this.redoHistory.pop();
+  if (!nextState) {
+    return;
+  }
+  this.undoHistory.push(this.getBoardState());
+  this.restoreBoardState(nextState);
+  this.lastBoardState = nextState;
+  this.quitarSeleccion();
+}
+
 }
