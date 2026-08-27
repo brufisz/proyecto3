@@ -262,8 +262,8 @@ export class EditorScene extends Phaser.Scene {
             .setVisible(false);
 
             this.input.keyboard?.on("keydown-BACKSPACE", () => {
-              this.saveIfChanged();
               this.borrarSeleccion();
+              this.saveIfChanged();
             });
 
             this.input.keyboard?.on("keydown-C", () => {
@@ -279,8 +279,8 @@ export class EditorScene extends Phaser.Scene {
             });
           
             this.input.keyboard?.on("keydown-DELETE", () => {
-              this.saveIfChanged();
               this.borrarSeleccion();
+              this.saveIfChanged();
             });
 
             this.input.keyboard?.on("keydown-Z", () => {
