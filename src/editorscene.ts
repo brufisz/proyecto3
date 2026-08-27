@@ -20,7 +20,6 @@ export class EditorScene extends Phaser.Scene {
 
     private tileVacio: number = 1;
 
-    private draggedSelection: number[][] = [];
     private undoHistory: number[][][] = [];
     private redoHistory: number[][][] = [];
     private lastBoardState: number[][] = [];
@@ -95,7 +94,7 @@ export class EditorScene extends Phaser.Scene {
             this.posibleArrastreSeleccion = false;
             this.arrastrandoSeleccion = true;
             this.seleccionando = false;
-            this.draggedSelection = this.getSelectionTiles();
+            this.copiarSeleccion();
           }
 
           if (this.herramienta === this.pasteTool || this.arrastrandoSeleccion) {
@@ -441,21 +440,32 @@ export class EditorScene extends Phaser.Scene {
       }
 
       private copiarSeleccion(): void {
-        const selection = this.getSelectionTiles();
-        if (selection.length === 0) {
+        if (this.seleccionIzquierda === -1 || this.seleccionAbajo === -1 || this.seleccionArriba === -1 || this.seleccionDerecha === -1) {
             return;
         }
-        this.seleccionCopiada = selection;
+        this.seleccionCopiada = [];
+        for (let fila = this.seleccionArriba; fila <= this.seleccionAbajo; fila++) {
+            let filaCopiada: number[] = [];
+            for (let columna = this.seleccionIzquierda; columna <= this.seleccionDerecha; columna++) {
+                let tileEncontrada = this.mapa.getTileAt(
+                    columna,
+                    fila,
+                    true,
+                    this.tablero,
+                );
+                filaCopiada.push(tileEncontrada.index);
+            }
+            this.seleccionCopiada.push(filaCopiada);
+        }
         this.actualizarVistaPegado();
       }
 
       private pegarSeleccion(): void {
-        const pasteTiles = this.getPasteTiles();
-        if ((this.herramienta !== this.pasteTool && !this.arrastrandoSeleccion) || pasteTiles.length === 0 || this.mouseX === -1 || this.mouseY === -1) {
+        if ((this.herramienta !== this.pasteTool && !this.arrastrandoSeleccion) || this.seleccionCopiada.length === 0 || this.mouseX === -1 || this.mouseY === -1) {
             return;
         }
-        const altoSeleccion = pasteTiles.length;
-        const anchoSeleccion = pasteTiles[0].length;
+        const altoSeleccion = this.seleccionCopiada.length;
+        const anchoSeleccion = this.seleccionCopiada[0].length;
 
         const inicioX = this.mouseX - Math.floor((anchoSeleccion - 1) / 2);
         const inicioY = this.mouseY - Math.floor((altoSeleccion - 1) / 2);
@@ -463,11 +473,11 @@ export class EditorScene extends Phaser.Scene {
         if (inicioX + anchoSeleccion > this.columns || inicioY + altoSeleccion > this.rows || inicioX < 0 || inicioY < 0) {
           return;
         }
-        for (let fila = 0; fila < pasteTiles.length; fila++) {
-            for (let columna = 0; columna < pasteTiles[fila].length; columna++) {
+        for (let fila = 0; fila < this.seleccionCopiada.length; fila++) {
+            for (let columna = 0; columna < this.seleccionCopiada[fila].length; columna++) {
               const destinoX = inicioX + columna;
               const destinoY = inicioY + fila;
-              const tileEncontrada = pasteTiles[fila][columna];
+              const tileEncontrada = this.seleccionCopiada[fila][columna];
                 this.mapa.putTileAt(
                     tileEncontrada === -1
                       ? this.tileVacio
@@ -482,13 +492,12 @@ export class EditorScene extends Phaser.Scene {
     }
     
     private actualizarVistaPegado(): void {
-      const pasteTiles = this.getPasteTiles();
-      if ((!this.arrastrandoSeleccion && this.herramienta !== this.pasteTool) || pasteTiles.length === 0 || this.mouseX === -1 || this.mouseY === -1) {
+      if ((!this.arrastrandoSeleccion && this.herramienta !== this.pasteTool) || this.seleccionCopiada.length === 0 || this.mouseX === -1 || this.mouseY === -1) {
         this.vistaPegado.setVisible(false);
         return;
       }
-      const altoSeleccion = pasteTiles.length;
-      const anchoSeleccion = pasteTiles[0].length;
+      const altoSeleccion = this.seleccionCopiada.length;
+      const anchoSeleccion = this.seleccionCopiada[0].length;
 
       const inicioX = this.mouseX - Math.floor((anchoSeleccion - 1) / 2);
       const inicioY = this.mouseY - Math.floor((altoSeleccion - 1) / 2);
@@ -571,12 +580,11 @@ export class EditorScene extends Phaser.Scene {
     }
 
   private puedePegarSeleccion(): boolean {
-    const pasteTiles = this.getPasteTiles();
-    if (pasteTiles.length === 0 || this.mouseX === -1 || this.mouseY === -1) {
+    if (this.seleccionCopiada.length === 0 || this.mouseX === -1 || this.mouseY === -1) {
         return false;
     }
-    const altoSeleccion = pasteTiles.length;
-    const anchoSeleccion = pasteTiles[0].length;
+    const altoSeleccion = this.seleccionCopiada.length;
+    const anchoSeleccion = this.seleccionCopiada[0].length;
     const inicioX = this.mouseX - Math.floor((anchoSeleccion - 1) / 2);
     const inicioY = this.mouseY - Math.floor((altoSeleccion - 1) / 2);
     return (inicioX >= 0 && inicioY >= 0 && inicioX + anchoSeleccion <= this.columns && inicioY + altoSeleccion <= this.rows
@@ -662,29 +670,6 @@ private redo(): void {
   this.restoreBoardState(nextState);
   this.lastBoardState = nextState;
   this.quitarSeleccion();
-}
-
-private getSelectionTiles(): number[][] {
-  const selection: number[][] = [];
-  if (this.seleccionIzquierda === -1 || this.seleccionDerecha === -1 || this.seleccionArriba === -1 || this.seleccionAbajo === -1) {
-    return selection;
-  }
-  for (let row = this.seleccionArriba; row <= this.seleccionAbajo; row++) {
-    const savedRow: number[] = [];
-    for (let column = this.seleccionIzquierda; column <= this.seleccionDerecha; column++) {
-      const tile = this.mapa.getTileAt(column, row, false, this.tablero);
-      savedRow.push(tile.index);
-    }
-    selection.push(savedRow);
-  }
-  return selection;
-}
-
-private getPasteTiles(): number[][] {
-  if (this.arrastrandoSeleccion) {
-    return this.draggedSelection;
-  }
-  return this.seleccionCopiada;
 }
 
 }
