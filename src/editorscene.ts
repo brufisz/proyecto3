@@ -18,14 +18,14 @@ export class EditorScene extends Phaser.Scene {
     private arrastreInicioX: number = -1;
     private arrastreInicioY: number = -1;
 
-    private tileVacio: number = 1;
+    private tileInvisible: number = 1;
 
     private undoHistory: number[][][] = [];
     private redoHistory: number[][][] = [];
     private lastBoardState: number[][] = [];
 
-    private selectTool: number  = 4;
-    private pasteTool: number = 30;
+    private selectTool: number  = 100;
+    private pasteTool: number = 101;
 
     private seleccionCopiada: number[][] = [];
     private portapapelesArrastre: number[][] | null = null;
@@ -203,7 +203,7 @@ export class EditorScene extends Phaser.Scene {
             for (let fila = 0; fila < this.rows; fila++) {
               for (let columna = 0; columna < this.columns; columna++) {
                 this.mapa.putTileAt(
-                  this.tileVacio,
+                  this.tileInvisible,
                   columna,
                   fila,
                   true,
@@ -331,7 +331,7 @@ export class EditorScene extends Phaser.Scene {
 
         if (this.herramienta === 0) {
           this.mapa.putTileAt(
-            this.tileVacio,
+            this.tileInvisible,
             this.mouseX,
             this.mouseY,
             true,
@@ -417,7 +417,7 @@ export class EditorScene extends Phaser.Scene {
         for (let fila = this.seleccionArriba; fila <= this.seleccionAbajo; fila++) {
           for (let columna = this.seleccionIzquierda; columna <= this.seleccionDerecha; columna++) {
             this.mapa.putTileAt(
-              this.tileVacio,
+              this.tileInvisible,
               columna,
               fila,
               true,
