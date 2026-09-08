@@ -61,6 +61,9 @@ const Tile = {
 export class GameScene extends Phaser.Scene {
     
     private levelNumber = 1;
+    private levelMode = 0;
+    private menuup = 0;
+    private menuOverlay!: Phaser.GameObjects.Rectangle;
 
     private history: GameState[] = [];
     
@@ -68,13 +71,16 @@ export class GameScene extends Phaser.Scene {
 
     private tempstorage: Entity | undefined;
 
-    init(data: { level: number }) {
-    this.levelNumber = data.level;
+    init(data: { level: number, history: GameState[] }) {
+        this.levelNumber = data.level;
+        this.history = data.history;
     }
 
     private qKey!: Phaser.Input.Keyboard.Key;
     private rKey!: Phaser.Input.Keyboard.Key;
     private zKey!: Phaser.Input.Keyboard.Key;
+    private escKey!: Phaser.Input.Keyboard.Key;
+    private enterKey!: Phaser.Input.Keyboard.Key;
 
     private entities: Entity[] = [];
     private lasers: Phaser.GameObjects.Sprite[] = [];
@@ -84,7 +90,22 @@ export class GameScene extends Phaser.Scene {
 
     private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
 
-    private staticRows;  
+    private staticRows;
+    
+    private selected = 0;
+    
+    private menuItems: Phaser.GameObjects.Text[] = [];
+    private menuLabels: string[] = [];
+        
+    private updateMenu() {
+        for (let i = 0; i < this.menuItems.length; i++) {
+            if (i === this.selected) {
+                this.menuItems[i].setText("> " + this.menuLabels[i]);
+            } else {
+                this.menuItems[i].setText(" " + this.menuLabels[i]);
+            }
+        }
+    }
 
     private opposite(dir: number): number {
         switch(dir) {
@@ -429,9 +450,13 @@ export class GameScene extends Phaser.Scene {
         this.entities = [];
         this.history = [];
         this.lasers = [];
+
         this.qKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.Q);
         this.rKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.R);
         this.zKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.Z);
+        this.escKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
+        this.enterKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
+
         const level = this.cache.text.get(`level${this.levelNumber}`);
         const [staticLayer, dynamicLayer, laserLayer, portalLayer] = level.split("^");
         this.staticRows = staticLayer.trim().split("\n");
@@ -693,7 +718,17 @@ export class GameScene extends Phaser.Scene {
             }
         }
         this.cursors = this.input.keyboard!.createCursorKeys();
-        this.raycast();
+        this.menuOverlay = this.add.rectangle(432, 332, 864, 664, 0x2d2d2d, 0.6).setVisible(false).setDepth(100);
+        this.menuLabels = ["RESUME", "OPTIONS", "EXIT"];
+        for (let i = 0; i < this.menuLabels.length; i++) {
+            const text = this.add.text(400, 250 + i * 40, this.menuLabels[i], {
+                    fontFamily: "biysmall",
+                    fontSize: "16px",
+                    color: "#ffffff",
+                }).setOrigin(0.5).setVisible(false).setDepth(101);
+            this.menuItems.push(text);
+        }
+        this.laserFunction();
     }
 
     //////////////////////////////
@@ -701,7 +736,41 @@ export class GameScene extends Phaser.Scene {
     //////////////////////////////
 
     update() {
-        if (Phaser.Input.Keyboard.JustDown(this.cursors.left!)) {
+        if (this.menuup == 1) {
+            if (Phaser.Input.Keyboard.JustDown(this.cursors.up!)) {
+                this.selected = (this.selected - 1 + this.menuItems.length) % this.menuItems.length;
+                this.updateMenu();
+            }
+            if (Phaser.Input.Keyboard.JustDown(this.cursors.down!)) {
+                this.selected = (this.selected + 1) % this.menuItems.length;
+                this.updateMenu();
+            }
+            if (Phaser.Input.Keyboard.JustDown(this.enterKey)) {
+                switch (this.selected) {
+                    case 0:
+                        this.menuup = 0;
+                        this.menuOverlay.setVisible(false);
+                        for (const item of this.menuItems) item.setVisible(false);
+                        break;
+                    case 1:
+                        break;
+                    case 2:
+                        this.entities = [];
+                        for (const laser of this.lasers) laser.destroy();
+                        this.lasers = [];
+                        this.scene.start("menu");
+                        break;
+                }
+            }
+            if (Phaser.Input.Keyboard.JustDown(this.escKey)) {
+                this.menuup = 0;
+                for (const item of this.menuItems) item.setVisible(false);
+                this.menuOverlay.setVisible(false);
+            }
+            return;
+        }
+
+        if (Phaser.Input.Keyboard.JustDown(this.cursors.left!) && this.menuup == 0) {
             this.history.push({entities: this.entities.map(entity => ({type: entity.type, x: entity.x, y: entity.y, dir: entity.dir}))
             });
             this.updatePosition(-1, 0, 1);
@@ -713,7 +782,7 @@ export class GameScene extends Phaser.Scene {
             this.flagCheck();
         }
 
-        if (Phaser.Input.Keyboard.JustDown(this.cursors.right!)) {
+        if (Phaser.Input.Keyboard.JustDown(this.cursors.right!) && this.menuup == 0) {
             this.history.push({entities: this.entities.map(entity => ({type: entity.type, x: entity.x, y: entity.y, dir: entity.dir}))
             });
             this.updatePosition(1, 0, 3);
@@ -725,7 +794,7 @@ export class GameScene extends Phaser.Scene {
             this.flagCheck();
         }
 
-        if (Phaser.Input.Keyboard.JustDown(this.cursors.up!)) {
+        if (Phaser.Input.Keyboard.JustDown(this.cursors.up!) && this.menuup == 0) {
             this.history.push({entities: this.entities.map(entity => ({type: entity.type, x: entity.x, y: entity.y, dir: entity.dir}))
             });
             this.updatePosition(0, -1, 2);
@@ -737,7 +806,7 @@ export class GameScene extends Phaser.Scene {
             this.flagCheck();
         }
 
-        if (Phaser.Input.Keyboard.JustDown(this.cursors.down!)) {
+        if (Phaser.Input.Keyboard.JustDown(this.cursors.down!) && this.menuup == 0) {
             this.history.push({entities: this.entities.map(entity => ({type: entity.type, x: entity.x, y: entity.y, dir: entity.dir}))
             }); 
             this.updatePosition(0, 1, 0);
@@ -749,7 +818,7 @@ export class GameScene extends Phaser.Scene {
             this.flagCheck();
         }
 
-        if (Phaser.Input.Keyboard.JustDown(this.rKey)) {
+        if (Phaser.Input.Keyboard.JustDown(this.rKey) && this.menuup == 0) {
             this.entities = [];
             for (const laser of this.lasers) {
                 laser.destroy();
@@ -758,7 +827,7 @@ export class GameScene extends Phaser.Scene {
             this.scene.start("game", {level: this.levelNumber});
         }
 
-        if (Phaser.Input.Keyboard.JustDown(this.qKey)) {
+        if (Phaser.Input.Keyboard.JustDown(this.qKey) && this.menuup == 0) {
             this.entities = [];
             for (const laser of this.lasers) {
                 laser.destroy();
@@ -766,7 +835,14 @@ export class GameScene extends Phaser.Scene {
             this.lasers = [];
             this.scene.start("game", {level: this.levelNumber+1});
         }
-        if (Phaser.Input.Keyboard.JustDown(this.zKey)) {
+        if (Phaser.Input.Keyboard.JustDown(this.escKey) && this.menuup == 0) {
+            this.menuup = 1;
+            this.selected = 0;
+            this.menuOverlay.setVisible(true);
+            for (const item of this.menuItems) item.setVisible(true);
+            this.updateMenu();
+        }
+        if (Phaser.Input.Keyboard.JustDown(this.zKey) && this.menuup == 0) {
             const state = this.history.pop();
             if (!state) {
                 return;
@@ -778,6 +854,9 @@ export class GameScene extends Phaser.Scene {
                 entity.y = oldEntity.y;
                 entity.dir = oldEntity.dir;
                 entity.sprite.setPosition(this.offsetX + entity.x * 64, this.offsetY + entity.y * 64);
+            }
+            for (const laser of this.lasers) {
+                laser.destroy();
             }
             this.laserFunction();
         }
