@@ -1,9 +1,21 @@
 import Phaser from "phaser";
 
+import {obtenerNivel, actualizarNivel} from "./niveles";
+
 export class EditorScene extends Phaser.Scene {
-    constructor() {
+  init(data: { nivelId?: string }): void {
+    if (data.nivelId !== undefined) {
+      this.nivelId = data.nivelId;
+    } else {
+      this.nivelId = null;
+    }
+  }
+
+  constructor() {
         super("EditorScene");
     }
+
+    private nivelId: string | undefined = undefined;
 
     private columns: number = 16;
     private rows: number = 10;
@@ -211,6 +223,12 @@ export class EditorScene extends Phaser.Scene {
                 );
               }
             }
+            if (this.nivelId !== null) {
+              const nivel = obtenerNivel(this.nivelId);
+              if (nivel !== undefined) {
+                this.restoreBoardState(nivel.tablero);
+              }
+            }
 
             this.tablero.setDepth(1);
             this.hoverCell.setDepth(2);
@@ -246,6 +264,10 @@ export class EditorScene extends Phaser.Scene {
 
             this.input.keyboard?.on("keydown-SPACE", () => {
               this.herramienta = (this.herramienta + 1) % 25;
+            });
+
+            this.input.keyboard?.on("keydown-S", () => {
+              this.herramienta = this.selectTool;
             });
 
             this.rectanguloSeleccion = this.add.rectangle(

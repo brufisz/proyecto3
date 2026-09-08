@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { LevelsScene } from "./levelsscene";
 
 export class MenuScene extends Phaser.Scene {
     private selected = 0;
@@ -71,7 +72,7 @@ export class MenuScene extends Phaser.Scene {
                     break;
                 
                 case 1:
-                    this.scene.start("options");
+                    this.scene.start("LevelsScene");
                     break;
 
                 case 2:
