@@ -93,6 +93,8 @@ export class GameScene extends Phaser.Scene {
     private staticRows;
     
     private selected = 0;
+
+    private operationNumber = 0;
     
     private menuItems: Phaser.GameObjects.Text[] = [];
     private menuLabels: string[] = [];
@@ -320,21 +322,45 @@ export class GameScene extends Phaser.Scene {
             player.sprite.setPosition(this.offsetX + player.x * 64, this.offsetY + player.y * 64);
             switch(portal.dir) {
                 case 0:
+                    this.operationNumber = 1;
                     this.updatePosition(0, -1, 2);
                     break;
                 case 1:
+                    this.operationNumber = 1;
                     this.updatePosition(1, 0, 3);
                     break;
                 case 2:
+                    this.operationNumber = 1;
                     this.updatePosition(0, 1, 0);
                     break;
                 case 3:
+                    this.operationNumber = 1;
                     this.updatePosition(-1, 0, 1);
                     break;
             }
         }
         else {
-            if (this.isWall(newX, newY)) {
+            if (this.isWall(newX, newY) && this.operationNumber == 0) {
+                return;
+            } 
+            else if (this.isWall(newX, newY) && this.operationNumber == 1){
+                this.operationNumber = 0;
+                const state = this.history.pop();
+                if (!state) {
+                    return;
+                }   
+                for (let i = 0; i < this.entities.length; i++) {
+                    const entity = this.entities[i];
+                    const oldEntity = state.entities[i];
+                    entity.x = oldEntity.x;
+                    entity.y = oldEntity.y;
+                    entity.dir = oldEntity.dir;
+                    entity.sprite.setPosition(this.offsetX + entity.x * 64, this.offsetY + entity.y * 64);
+                }
+                for (const laser of this.lasers) {
+                    laser.destroy();
+                }
+                this.laserFunction();
                 return;
             }
             const entity = this.getEntityAt(newX, newY);
@@ -349,22 +375,47 @@ export class GameScene extends Phaser.Scene {
                     entity.y = portal.y;
                     entity.dir = (((entity.dir + (portala.dir -portal.dir)) % 4) + 4) % 4;
                     entity.sprite.setPosition(this.offsetX + entity.x * 64, this.offsetY + entity.y * 64);
+                    let done = false;
                     switch(portal.dir) {
                         case 0:
-                            this.updatePosition2(0, -1, 2);
+                            this.operationNumber = 1;
+                            done = this.updatePosition2(0, -1, 2);
                             break;
                         case 1:
-                            this.updatePosition2(1, 0, 3);
+                            this.operationNumber = 1;
+                            done = this.updatePosition2(1, 0, 3);
                             break;
                         case 2:
-                            this.updatePosition2(0, 1, 0);
+                            this.operationNumber = 1;
+                            done = this.updatePosition2(0, 1, 0);
                             break;
                         case 3:
-                            this.updatePosition2(-1, 0, 1);
+                            this.operationNumber = 1;
+                            done = this.updatePosition2(-1, 0, 1);
                             break;
                     }
+                    if (!done) {
+                        return;
+                    }
                 } else {
-                    if (this.isWall(newEntityX, newEntityY) || this.getEntityAt(newEntityX, newEntityY)) {
+                    if ((this.isWall(newEntityX, newEntityY) || this.getEntityAt(newEntityX, newEntityY)) && this.operationNumber == 0) {
+                        return;
+                    }
+                    else if ((this.isWall(newEntityX, newEntityY) || this.getEntityAt(newEntityX, newEntityY)) && this.operationNumber == 1) {
+                        this.operationNumber = 0;
+                        const state = this.history.pop();
+                        for (let i = 0; i < this.entities.length; i++) {
+                            const entity = this.entities[i];
+                            const oldEntity = state.entities[i];
+                            entity.x = oldEntity.x;
+                            entity.y = oldEntity.y;
+                            entity.dir = oldEntity.dir;
+                            entity.sprite.setPosition(this.offsetX + entity.x * 64, this.offsetY + entity.y * 64);
+                        }
+                        for (const laser of this.lasers) {
+                            laser.destroy();
+                        }
+                        this.laserFunction();
                         return;
                     }
                     entity.x = newEntityX;
@@ -393,7 +444,7 @@ export class GameScene extends Phaser.Scene {
         }
     }
 
-    private updatePosition2(dx: number, dy: number, dir: number) { // box & portal auxiliary function
+    private updatePosition2(dx: number, dy: number, dir: number): boolean{ // box & portal auxiliary function
         const newX = this.tempstorage.x + dx;
         const newY = this.tempstorage.y + dy;
 
@@ -405,28 +456,42 @@ export class GameScene extends Phaser.Scene {
             this.tempstorage.sprite.setPosition(this.offsetX + this.tempstorage.x * 64, this.offsetY + this.tempstorage.y * 64);
             switch(portal.dir) {
                 case 0:
-                    this.updatePosition2(0, -1, 2);
-                    break;
+                    return this.updatePosition2(0, -1, 2);
                 case 1:
-                    this.updatePosition2(1, 0, 3);
-                    break;
+                    return this.updatePosition2(1, 0, 3);
                 case 2:
-                    this.updatePosition2(0, 1, 0);
-                    break;
+                    return this.updatePosition2(0, 1, 0);
                 case 3:
-                    this.updatePosition2(-1, 0, 1);
-                    break;
+                    return this.updatePosition2(-1, 0, 1);
             }
             return;
         }
 
         if (this.isWall(newX, newY)|| this.getEntityAt(newX, newY)) {
-            return;
+            this.operationNumber = 0;
+            const state = this.history.pop();
+            if (!state) {
+                return;
+            }   
+            for (let i = 0; i < this.entities.length; i++) {
+                const entity = this.entities[i];
+                const oldEntity = state.entities[i];
+                entity.x = oldEntity.x;
+                entity.y = oldEntity.y;
+                entity.dir = oldEntity.dir;
+                entity.sprite.setPosition(this.offsetX + entity.x * 64, this.offsetY + entity.y * 64);
+            }
+            for (const laser of this.lasers) {
+                laser.destroy();
+            }
+            this.laserFunction();
+            return false;
         }
 
         this.tempstorage.x = newX;
         this.tempstorage.y = newY;
         this.tempstorage.sprite.setPosition(this.offsetX + newX * 64, this.offsetY + newY * 64);
+        return true;
     }
 
     constructor() {
@@ -771,6 +836,7 @@ export class GameScene extends Phaser.Scene {
         }
 
         if (Phaser.Input.Keyboard.JustDown(this.cursors.left!) && this.menuup == 0) {
+            this.operationNumber = 0;
             this.history.push({entities: this.entities.map(entity => ({type: entity.type, x: entity.x, y: entity.y, dir: entity.dir}))
             });
             this.updatePosition(-1, 0, 1);
@@ -783,6 +849,7 @@ export class GameScene extends Phaser.Scene {
         }
 
         if (Phaser.Input.Keyboard.JustDown(this.cursors.right!) && this.menuup == 0) {
+            this.operationNumber = 0;
             this.history.push({entities: this.entities.map(entity => ({type: entity.type, x: entity.x, y: entity.y, dir: entity.dir}))
             });
             this.updatePosition(1, 0, 3);
@@ -795,6 +862,7 @@ export class GameScene extends Phaser.Scene {
         }
 
         if (Phaser.Input.Keyboard.JustDown(this.cursors.up!) && this.menuup == 0) {
+            this.operationNumber = 0;
             this.history.push({entities: this.entities.map(entity => ({type: entity.type, x: entity.x, y: entity.y, dir: entity.dir}))
             });
             this.updatePosition(0, -1, 2);
@@ -807,6 +875,7 @@ export class GameScene extends Phaser.Scene {
         }
 
         if (Phaser.Input.Keyboard.JustDown(this.cursors.down!) && this.menuup == 0) {
+            this.operationNumber = 0;
             this.history.push({entities: this.entities.map(entity => ({type: entity.type, x: entity.x, y: entity.y, dir: entity.dir}))
             }); 
             this.updatePosition(0, 1, 0);
@@ -819,6 +888,7 @@ export class GameScene extends Phaser.Scene {
         }
 
         if (Phaser.Input.Keyboard.JustDown(this.rKey) && this.menuup == 0) {
+            this.operationNumber = 0;
             this.entities = [];
             for (const laser of this.lasers) {
                 laser.destroy();
@@ -828,6 +898,7 @@ export class GameScene extends Phaser.Scene {
         }
 
         if (Phaser.Input.Keyboard.JustDown(this.qKey) && this.menuup == 0) {
+            this.operationNumber = 0;
             this.entities = [];
             for (const laser of this.lasers) {
                 laser.destroy();
@@ -836,6 +907,7 @@ export class GameScene extends Phaser.Scene {
             this.scene.start("game", {level: this.levelNumber+1});
         }
         if (Phaser.Input.Keyboard.JustDown(this.escKey) && this.menuup == 0) {
+            this.operationNumber = 0;
             this.menuup = 1;
             this.selected = 0;
             this.menuOverlay.setVisible(true);
@@ -843,6 +915,7 @@ export class GameScene extends Phaser.Scene {
             this.updateMenu();
         }
         if (Phaser.Input.Keyboard.JustDown(this.zKey) && this.menuup == 0) {
+            this.operationNumber = 0;
             const state = this.history.pop();
             if (!state) {
                 return;
