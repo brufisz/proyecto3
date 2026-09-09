@@ -15,7 +15,7 @@ export class EditorScene extends Phaser.Scene {
         super("EditorScene");
     }
 
-    private nivelId: string | undefined = undefined;
+    private nivelId: string | null = null;
 
     private columns: number = 16;
     private rows: number = 10;
@@ -39,6 +39,13 @@ export class EditorScene extends Phaser.Scene {
     private selectTool: number  = 100;
     private pasteTool: number = 101;
 
+    //INTERFAZ
+
+    private botonSeleccionar!: Phaser.GameObjects.Rectangle;
+    private botonPegar!: Phaser.GameObjects.Rectangle;
+    private botonBorrar!: Phaser.GameObjects.Rectangle;
+    private botonDeseleccionar!: Phaser.GameObjects.Rectangle;
+
     private seleccionCopiada: number[][] = [];
     private portapapelesArrastre: number[][] | null = null;
     private vistaPegado!: Phaser.GameObjects.Rectangle;
@@ -47,6 +54,7 @@ export class EditorScene extends Phaser.Scene {
     private mouseY: number = -1;
     private hoverCell!: Phaser.GameObjects.Rectangle;
 
+    private haySeleccion: boolean = false;
     private seleccionando: boolean = false;
     private seleccionInicioX: number = -1;
     private seleccionInicioY: number = -1;
@@ -196,6 +204,7 @@ export class EditorScene extends Phaser.Scene {
 
           if (this.seleccionando) {
             this.actualizarSeleccion();
+            this.haySeleccion = true;
             this.seleccionando = false;
           }
         });
@@ -344,6 +353,7 @@ export class EditorScene extends Phaser.Scene {
             this.vistaPegado.setVisible(false);
             this.vistaPegado.setDepth(10);
 
+            this.crearInterfaz();
             this.lastBoardState = this.getBoardState();
 
       }
@@ -402,7 +412,7 @@ export class EditorScene extends Phaser.Scene {
         this.seleccionando = true;
     
         this.rectanguloSeleccion.setVisible(true);
-        this.actualizarSeleccion();
+        this.actualizarInterfaz;
     }
     
     private actualizarSeleccion(): void {
@@ -478,7 +488,7 @@ export class EditorScene extends Phaser.Scene {
 
       private quitarSeleccion(): void {
         this.seleccionando = false;
-    
+        this.haySeleccion = false;
         this.rectanguloSeleccion.setVisible(false);
     
         this.seleccionInicioX = -1;
@@ -488,6 +498,8 @@ export class EditorScene extends Phaser.Scene {
         this.seleccionDerecha = -1;
         this.seleccionArriba = -1;
         this.seleccionAbajo = -1;
+
+        this.actualizarInterfaz();
       }
 
       private copiarSeleccion(): void {
@@ -497,6 +509,7 @@ export class EditorScene extends Phaser.Scene {
         }
         this.seleccionCopiada = contenido;
         this.actualizarVistaPegado();
+        this.actualizarInterfaz();
       } 
       
       private pegarSeleccion(): void {
@@ -610,6 +623,7 @@ export class EditorScene extends Phaser.Scene {
           alto * this.cellsize,
         )
         .setVisible(true);
+        this.haySeleccion = true;
     }
 
   private puedePegarSeleccion(): boolean {
@@ -746,6 +760,83 @@ private guardarNivelActual(): void {
   nivel.tablero = this.getBoardState();
   actualizarNivel(nivel);
 }
+
+//INTERFAZ
+
+private actualizarInterfaz(): void {
+  if (this.herramienta === this.selectTool){
+    this.botonSeleccionar.setFillStyle(0x6666aa);
+  } else {
+    this.botonSeleccionar.setFillStyle(0x333333);
+  }
+
+  if (this.seleccionCopiada.length === 0) {
+      this.botonPegar.disableInteractive();
+      this.botonPegar.setFillStyle(0x777777);
+      this.botonPegar.setAlpha(0.5);
+  } else {
+      this.botonPegar.setInteractive({ useHandCursor: true });
+      this.botonPegar.setAlpha(1);
+      if (this.herramienta === this.pasteTool) {
+        this.botonPegar.setFillStyle(0x6666aa);
+      } else {
+        this.botonPegar.setFillStyle(0x333333);
+      }
+  }
+
+  if (this.haySeleccion) {
+      this.botonBorrar.setInteractive({ useHandCursor: true });
+      this.botonDeseleccionar.setInteractive({ useHandCursor: true });
+      this.botonBorrar.setFillStyle(0x333333);
+      this.botonDeseleccionar.setFillStyle(0x333333);
+      this.botonBorrar.setAlpha(1);
+      this.botonDeseleccionar.setAlpha(1);
+  } else {
+      this.botonBorrar.disableInteractive();
+      this.botonDeseleccionar.disableInteractive();
+      this.botonBorrar.setFillStyle(0x777777);
+      this.botonDeseleccionar.setFillStyle(0x777777);
+      this.botonBorrar.setAlpha(0.5);
+      this.botonDeseleccionar.setAlpha(0.5);
+  }
+}
+private crearInterfaz(): void {
+  let y = 60;
+  const x = 600;
+  const separacion = 60;
+  this.botonSeleccionar = crearBoton(this, x, y, 100, "Seleccionar", () => {
+      this.herramienta = this.selectTool;
+      this.actualizarInterfaz();
+  });
+  y += separacion;
+  crearBoton(this, x, y, 100, "Copiar", () => {
+      this.copiarSeleccion();
+      this.actualizarInterfaz();
+  });
+  y += separacion;
+  this.botonPegar = crearBoton(this, x, y, 100, "Pegar", () => {
+      this.herramienta = this.pasteTool;
+      this.actualizarInterfaz();
+  });
+  y += separacion;
+  this.botonBorrar = crearBoton(this, x, y, 100, "Borrar", () => {
+      this.borrarSeleccion();
+      this.quitarSeleccion();
+      this.actualizarInterfaz();
+  });
+  y += separacion;
+  this.botonDeseleccionar = crearBoton(this, x, y, 100, "Deseleccionar", () => {
+      this.quitarSeleccion();
+      this.actualizarInterfaz();
+  });
+  y += separacion;
+  crearBoton(this, x, y, 100, "Undo", () => this.undo());
+  y += separacion;
+  crearBoton(this, x, y, 100, "Redo", () => this.redo());
+  this.actualizarInterfaz();
+}
+
+
 
 
 }
