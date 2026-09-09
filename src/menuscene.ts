@@ -72,11 +72,11 @@ export class MenuScene extends Phaser.Scene {
                     break;
                 
                 case 1:
-                    this.scene.start("LevelsScene");
+                    this.scene.start("options");
                     break;
 
                 case 2:
-                    this.scene.start("EditorScene");
+                    this.scene.start("LevelsScene");
                     break;
 
                 case 3:

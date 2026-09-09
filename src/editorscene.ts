@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 
-import {obtenerNivel, actualizarNivel} from "./niveles";
+import {obtenerNivel, actualizarNivel, crearBoton} from "./niveles";
 
 export class EditorScene extends Phaser.Scene {
   init(data: { nivelId?: string }): void {
@@ -91,6 +91,26 @@ export class EditorScene extends Phaser.Scene {
           )
           .setVisible(false);
           
+          crearBoton(
+            this,
+            100,
+            500,
+            100,
+            "Guardar",
+            () => {
+              this.guardarNivelActual();
+            });
+
+            crearBoton(
+              this,
+              100,
+              550,
+              100,
+              "Volver",
+              () => {
+                this.scene.start("LevelsScene");
+              });
+
         this.input.on("pointermove", (mouse: Phaser.Input.Pointer) => {
           this.updateHoveredCell(mouse.worldX, mouse.worldY);
           if (
@@ -127,6 +147,8 @@ export class EditorScene extends Phaser.Scene {
         this.input.on("pointerup", (mouse: Phaser.Input.Pointer) => {
           this.updateHoveredCell(mouse.worldX, mouse.worldY);
           this.saveIfChanged();
+        
+        //EVENTOS  
 
           if (this.arrastrandoSeleccion) {
             if (this.puedePegarSeleccion()) {
@@ -282,6 +304,8 @@ export class EditorScene extends Phaser.Scene {
             .setStrokeStyle(2, 0x3399ff, 1)
             .setDepth(3)
             .setVisible(false);
+
+            //EVENTOS DE TECLADO
 
             this.input.keyboard?.on("keydown-BACKSPACE", () => {
               this.borrarSeleccion();
@@ -710,6 +734,19 @@ update(): void {
     this.vistaPegado.setVisible(false);
   }
 }
+
+private guardarNivelActual(): void {
+  if (this.nivelId === null) {
+    return;
+  }
+  const nivel = obtenerNivel(this.nivelId);
+  if (nivel === undefined) {
+    return;
+  }
+  nivel.tablero = this.getBoardState();
+  actualizarNivel(nivel);
+}
+
 
 }
 

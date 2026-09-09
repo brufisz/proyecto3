@@ -26,7 +26,7 @@ export function crearNivel(filas: number, columnas: number): Nivel {
     for (let fila = 0; fila < filas; fila++) {
       const nuevaFila: number[] = [];
       for (let columna = 0; columna < columnas; columna++) {
-        nuevaFila.push(0);
+        nuevaFila.push(1);
       }
       tablero.push(nuevaFila);
     }
@@ -37,12 +37,17 @@ export function crearNivel(filas: number, columnas: number): Nivel {
             nuevaId = idNumerica + 1;
         }
     }
+    let numeroNombre = 0;
+    while (niveles.some((nivel) => {
+      return nivel.nombre === 'Untitled Level ' + numeroNombre.toString();
+    })) { numeroNombre++; }
     const nivel: Nivel = {
       id: nuevaId.toString(),
-      nombre: 'Untitled Level',
+      nombre: 'Untitled Level ' + numeroNombre.toString(),
       tablero: tablero,
     };
     niveles.push(nivel);  
+    guardarNiveles(niveles);
     return nivel;
   }
 
@@ -72,3 +77,33 @@ export function crearNivel(filas: number, columnas: number): Nivel {
     nivelesLista[indice] = nivelActualizado;
     guardarNiveles(nivelesLista);
   }
+
+  export function crearBoton(escena: Phaser.Scene, x: number, y: number, ancho: number, texto: string, accion: () => void): Phaser.GameObjects.Rectangle {
+    const fondo = escena.add.rectangle(x, y, ancho, 40, 0x333333);
+    fondo.setInteractive({ useHandCursor: true })
+    fondo.setStrokeStyle(1, 0xff0000);
+    escena.add.text(x, y, texto,
+      {
+        fontSize: "16px",
+        color: "#ffffff",
+      },
+    ).setOrigin(0.5);
+    fondo.on("pointerdown", () => {
+      accion();
+    });
+    return fondo;
+
+  }
+
+  export function renombrarNivel(id: string, nuevoNombre: string): void {
+    const niveles = obtenerNiveles();
+    const nivel = niveles.find((item) => {
+      return item.id === id;
+    });
+    if (nivel === undefined) {
+      return;
+    }
+    nivel.nombre = nuevoNombre;
+    guardarNiveles(niveles);
+  }
+
