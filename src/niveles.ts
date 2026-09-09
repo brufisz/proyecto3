@@ -107,3 +107,49 @@ export function crearNivel(filas: number, columnas: number): Nivel {
     guardarNiveles(niveles);
   }
 
+  export function duplicarNivel(id: string,): Nivel | undefined {
+    const niveles = obtenerNiveles();
+    const nivelOriginal = niveles.find((item) => {
+      return item.id === id;
+    });
+    if (nivelOriginal === undefined) {
+      return undefined;
+    }
+
+    let nuevaId = 1;
+    for (const nivel of niveles) {
+      const idNumerica = Number(nivel.id);
+      if (idNumerica >= nuevaId) {
+        nuevaId = idNumerica + 1;
+      }
+    }
+    let nombreBase = nivelOriginal.nombre;
+    const posicionParentesis = nombreBase.lastIndexOf(" (");
+    if (posicionParentesis !== -1 && nombreBase.endsWith(")")) {
+      const numeroTexto = nombreBase.substring(posicionParentesis + 2, nombreBase.length - 1);
+      const numero = Number(numeroTexto);
+      if (!isNaN(numero)) {
+        nombreBase = nombreBase.substring(0, posicionParentesis);
+      }
+    }
+    let numeroCopia = 1;
+    let nuevoNombre = nombreBase + " (" + numeroCopia + ")";
+    while (niveles.some((nivel) => {
+        return nivel.nombre === nuevoNombre;
+    })) {
+      numeroCopia++;
+      nuevoNombre = nombreBase + " (" + numeroCopia + ")";
+    }
+    const nivelDuplicado: Nivel = {
+      id: nuevaId.toString(),
+      nombre: nuevoNombre,
+      tablero: nivelOriginal.tablero,
+    }
+      niveles.push(nivelDuplicado);
+      guardarNiveles(niveles);
+      return nivelDuplicado;
+    };
+  
+  
+   
+

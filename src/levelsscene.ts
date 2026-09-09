@@ -6,6 +6,7 @@ import {
   eliminarNivel,
   crearBoton,
   renombrarNivel,
+  duplicarNivel,
 } from "./niveles";
 
 export class LevelsScene extends Phaser.Scene {
@@ -44,7 +45,11 @@ private mostrarNiveles(): void {
           }
           renombrarNivel(nivel.id, nuevoNombre.trim());
           this.scene.restart();
-      });
+        });
+        crearBoton(this, 630, y, 90, "Duplicar", () => {
+          duplicarNivel(nivel.id);
+          this.scene.restart();
+        });
         y = y + 60;
     }
  }
