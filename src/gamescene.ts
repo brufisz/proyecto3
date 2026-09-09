@@ -4,10 +4,13 @@ interface Entity {
     type: string;
     x: number;
     y: number;
-    dir: number;
-    emitting: number;
+    dir?: number;
+    emitting?: number;
+    portal?: number;
+    group?: number;
     pushable: boolean;
     sprite: Phaser.GameObjects.Sprite;
+    sprite2?: Phaser.GameObjects.Sprite;
 }
 
 interface GameState {
@@ -119,27 +122,35 @@ export class GameScene extends Phaser.Scene {
     }
 
     private isWall(x: number, y: number): boolean {
-        if (this.staticRows[y][x] === "#") {
+        if (y < 0 || y >= this.staticRows.length || x < 0 || x >= this.staticRows[y].length) {
+            return true;
+        }
+        if (this.entities.find(entity => entity.type === "wall" && entity.x === x && entity.y === y)) {
             return true;
         }
         return false;
     }
-    private isPortal(x: number, y: number, dir: number): boolean {
-        if (this.entities.find(entity => entity.type === "portal" && entity.x === x && entity.y === y && entity.dir === dir)) {
-            return true;
+
+    private getPortalAt(x: number, y: number, dir?: number): Entity | undefined {
+        if (dir !== undefined) {
+            return this.entities.find(entity => entity.portal === dir && entity.x === x && entity.y === y );
+        } else {
+            return this.entities.find(entity => entity.portal !== undefined && entity.x === x && entity.y === y );
         }
-        return false;
     }
 
     private getEntityAt(x: number, y: number): Entity | undefined {
         return this.entities.find(entity => entity.pushable === true && entity.x === x && entity.y === y);
     }
+    private getAnythingAt(x: number, y: number): Entity | undefined {
+        return this.entities.find(entity => entity.x === x && entity.y === y);
+    }
     private getMirrorAt(x: number, y: number): Entity | undefined {
         return this.entities.find(entity => entity.x === x && entity.y === y && entity.type === "mirror");
     }
 
-    private findPair(x: number, y: number,): Entity | undefined {
-        return (this.entities.find(entity => entity.type === "portal" && !(entity.x === x && entity.y === y)))
+    private findPair(group: number, exclude: Entity): Entity | undefined {
+        return (this.entities.find(entity => entity.portal !== undefined && entity.group === group && entity !== exclude));
     }
     
     private addLaser(x: number, y: number, dir: number) {
@@ -154,9 +165,10 @@ export class GameScene extends Phaser.Scene {
         const nextX = x + dx;
         const nextY = y + dy;
 
-        if(this.isPortal(nextX, nextY, this.opposite(dir))) {
-            const portal = this.findPair(nextX, nextY);
-            portal.emitting = portal.dir;
+        if(this.getPortalAt(nextX, nextY, this.opposite(dir))) {
+            const entry = this.getPortalAt(nextX, nextY);
+            const exit = this.findPair(entry.group, entry);
+            exit.emitting = exit.portal;
             return;
         }
         if (this.isWall(nextX, nextY) || (this.getEntityAt(nextX, nextY) && !this.getMirrorAt(nextX, nextY))) {
@@ -211,7 +223,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     private raycast() {
-        const emitters = this.entities.filter(entity => entity.emitting !== 4);
+        const emitters = this.entities.filter(entity => entity.emitting !== undefined);
         if (!emitters) {
             return;
         }
@@ -224,7 +236,7 @@ export class GameScene extends Phaser.Scene {
         const mirrors = this.entities.filter(entity => entity.type === "mirror");
         if (mirrors) {
             for (const mirror of mirrors) {
-                mirror.emitting = 4;
+                mirror.emitting = undefined;
                 switch(mirror.dir) {
                     case 0: case 2: mirror.sprite.setTexture("tiles", Tile.MirrorREmpty); break;
                     case 1: case 3: mirror.sprite.setTexture("tiles", Tile.MirrorLEmpty); break;
@@ -243,10 +255,10 @@ export class GameScene extends Phaser.Scene {
                 }
             }
         }
-        const portals = this.entities.filter(entity => entity.type === "portal");
+        const portals = this.entities.filter(entity => entity.portal !== undefined);
         if (portals) {
             for (const portal of portals) {
-                portal.emitting = 4;
+                portal.emitting = undefined;
             }
         }
         this.raycast();
@@ -314,13 +326,14 @@ export class GameScene extends Phaser.Scene {
         const newX = player.x + dx;
         const newY = player.y + dy;
 
-        if (this.isPortal(newX, newY, dir)) {
-            const portal = this.findPair(newX, newY);
-            player.x = portal.x;
-            player.y = portal.y;
-            player.dir = portal.dir;
+        if (this.getPortalAt(newX, newY, dir)) {
+            const entry = this.getPortalAt(newX, newY);
+            const exit = this.findPair(entry.group, entry);
+            player.x = exit.x;
+            player.y = exit.y;
+            player.dir = exit.portal;
             player.sprite.setPosition(this.offsetX + player.x * 64, this.offsetY + player.y * 64);
-            switch(portal.dir) {
+            switch(exit.portal) {
                 case 0:
                     this.operationNumber = 1;
                     this.updatePosition(0, -1, 2);
@@ -356,6 +369,7 @@ export class GameScene extends Phaser.Scene {
                     entity.y = oldEntity.y;
                     entity.dir = oldEntity.dir;
                     entity.sprite.setPosition(this.offsetX + entity.x * 64, this.offsetY + entity.y * 64);
+                    if (entity.sprite2) {entity.sprite2.setPosition(this.offsetX + entity.x * 64, this.offsetY + entity.y * 64);}
                 }
                 for (const laser of this.lasers) {
                     laser.destroy();
@@ -368,15 +382,16 @@ export class GameScene extends Phaser.Scene {
                 this.tempstorage = entity;
                 const newEntityX = entity.x + dx;
                 const newEntityY = entity.y + dy;
-                if (this.isPortal(newEntityX, newEntityY, dir)) {
-                    const portal = this.findPair(newEntityX, newEntityY);
-                    const portala = this.findPair(portal.x, portal.y);
-                    entity.x = portal.x;
-                    entity.y = portal.y;
-                    entity.dir = (((entity.dir + (portala.dir -portal.dir)) % 4) + 4) % 4;
+                if (this.getPortalAt(newEntityX, newEntityY, dir)) {
+                    const entry= this.getPortalAt(newEntityX, newEntityY);
+                    const exit = this.findPair(entry.group, entry);
+                    entity.x = exit.x;
+                    entity.y = exit.y;
+                    entity.dir = (((entity.dir + (entry.portal - exit.portal)) % 4) + 4) % 4;
                     entity.sprite.setPosition(this.offsetX + entity.x * 64, this.offsetY + entity.y * 64);
+                    if (entity.sprite2) {entity.sprite2.setPosition(this.offsetX + entity.x * 64, this.offsetY + entity.y * 64);}
                     let done = false;
-                    switch(portal.dir) {
+                    switch(exit.portal) {
                         case 0:
                             this.operationNumber = 1;
                             done = this.updatePosition2(0, -1, 2);
@@ -411,6 +426,8 @@ export class GameScene extends Phaser.Scene {
                             entity.y = oldEntity.y;
                             entity.dir = oldEntity.dir;
                             entity.sprite.setPosition(this.offsetX + entity.x * 64, this.offsetY + entity.y * 64);
+                            if (entity.sprite2) {entity.sprite2.setPosition(this.offsetX + entity.x * 64, this.offsetY + entity.y * 64);}
+
                         }
                         for (const laser of this.lasers) {
                             laser.destroy();
@@ -420,10 +437,8 @@ export class GameScene extends Phaser.Scene {
                     }
                     entity.x = newEntityX;
                     entity.y = newEntityY;
-                    entity.sprite.setPosition(
-                        this.offsetX + entity.x * 64,
-                        this.offsetY + entity.y * 64
-                    );
+                    entity.sprite.setPosition(this.offsetX + entity.x * 64, this.offsetY + entity.y * 64);
+                    if (entity.sprite2) {entity.sprite2.setPosition(this.offsetX + entity.x * 64, this.offsetY + entity.y * 64);}
                 }
             }
             player.x = newX;
@@ -448,13 +463,14 @@ export class GameScene extends Phaser.Scene {
         const newX = this.tempstorage.x + dx;
         const newY = this.tempstorage.y + dy;
 
-        if (this.isPortal(newX, newY, dir)) {
-            const portal = this.findPair(newX, newY);
-            this.tempstorage.x = portal.x;
-            this.tempstorage.y = portal.y;
-            this.tempstorage.dir = portal.dir;
+        if (this.getPortalAt(newX, newY, dir)) {
+            const entry = this.getPortalAt(newX, newY);
+            const exit = this.findPair(entry.group, entry);
+            this.tempstorage.x = exit.x;
+            this.tempstorage.y = exit.y;
+            this.tempstorage.dir = exit.portal;
             this.tempstorage.sprite.setPosition(this.offsetX + this.tempstorage.x * 64, this.offsetY + this.tempstorage.y * 64);
-            switch(portal.dir) {
+            switch(exit.portal) {
                 case 0:
                     return this.updatePosition2(0, -1, 2);
                 case 1:
@@ -523,11 +539,12 @@ export class GameScene extends Phaser.Scene {
         this.enterKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
 
         const level = this.cache.text.get(`level${this.levelNumber}`);
-        const [staticLayer, dynamicLayer, laserLayer, portalLayer] = level.split("^");
+        const [staticLayer, dynamicLayer, laserLayer, portalLayer, directionLayer] = level.split("^");
         this.staticRows = staticLayer.trim().split("\n");
         const dynamicRows = dynamicLayer.trim().split("\n");
         const laserRows = laserLayer.trim().split("\n");
         const portalRows = portalLayer.trim().split("\n");
+        const directionRows = directionLayer.trim().split("\n");
         this.offsetX = (864 - this.staticRows[0].length * 64) / 2;
         this.offsetY = (664 - this.staticRows.length * 64) / 2;
 
@@ -536,15 +553,19 @@ export class GameScene extends Phaser.Scene {
                 const thistile = this.staticRows[y][x];
                 switch(thistile) {
                     case "#":
-                        this.add.sprite(this.offsetX+x*64, this.offsetY+y*64, "tiles", Tile.Wall).setScale(2);
+                        this.entities.push ({
+                        type: "wall",
+                        x: x,
+                        y: y,
+                        pushable: false,
+                        sprite: this.add.sprite(this.offsetX+x*64, this.offsetY+y*64, "tiles", Tile.Wall).setScale(2)
+                        });
                         break;
                     case "X":
                         this.entities.push ({
                         type: "goal",
                         x: x,
                         y: y,
-                        dir: 0,
-                        emitting: 4,
                         pushable: false,
                         sprite: this.add.sprite(this.offsetX+x*64, this.offsetY+y*64, "tiles", Tile.Goal).setScale(2)
                         });
@@ -554,8 +575,6 @@ export class GameScene extends Phaser.Scene {
                         type: "flag",
                         x: x,
                         y: y,
-                        dir: 0,
-                        emitting: 4,
                         pushable: false,
                         sprite: this.add.sprite(this.offsetX+x*64, this.offsetY+y*64, "tiles", Tile.Flag1).setScale(2)
                         });
@@ -573,7 +592,6 @@ export class GameScene extends Phaser.Scene {
                         x: x,
                         y: y,
                         dir: 0,
-                        emitting: 4,
                         pushable: true,
                         sprite: this.add.sprite(this.offsetX+x*64, this.offsetY+y*64, "tiles", Tile.Player).setScale(2)
                         });
@@ -584,7 +602,6 @@ export class GameScene extends Phaser.Scene {
                         x: x,
                         y: y,
                         dir: 0,
-                        emitting: 4,
                         pushable: true,
                         sprite: this.add.sprite(this.offsetX+x*64, this.offsetY+y*64, "tiles", Tile.Box).setScale(2)
                         });
@@ -646,7 +663,6 @@ export class GameScene extends Phaser.Scene {
                         x: x,
                         y: y,
                         dir: 0,
-                        emitting: 4,
                         pushable: true,
                         sprite: this.add.sprite(this.offsetX+x*64, this.offsetY+y*64, "tiles", Tile.Reciever).setScale(2)
                         });
@@ -657,7 +673,6 @@ export class GameScene extends Phaser.Scene {
                         x: x,
                         y: y,
                         dir: 3,
-                        emitting: 4,
                         pushable: true,
                         sprite: this.add.sprite(this.offsetX+x*64, this.offsetY+y*64, "tiles", Tile.Reciever).setScale(2)
                         });
@@ -668,7 +683,6 @@ export class GameScene extends Phaser.Scene {
                         x: x,
                         y: y,
                         dir: 2,
-                        emitting: 4,
                         pushable: true,
                         sprite: this.add.sprite(this.offsetX+x*64, this.offsetY+y*64, "tiles", Tile.Reciever).setScale(2)
                         });
@@ -679,7 +693,6 @@ export class GameScene extends Phaser.Scene {
                         x: x,
                         y: y,
                         dir: 1,
-                        emitting: 4,
                         pushable: true,
                         sprite: this.add.sprite(this.offsetX+x*64, this.offsetY+y*64, "tiles", Tile.Reciever).setScale(2)
                         });
@@ -690,7 +703,6 @@ export class GameScene extends Phaser.Scene {
                         x: x,
                         y: y,
                         dir: 0,
-                        emitting: 4,
                         pushable: true,
                         sprite: this.add.sprite(this.offsetX+x*64, this.offsetY+y*64, "tiles", Tile.MirrorREmpty).setScale(2)
                         });
@@ -701,7 +713,6 @@ export class GameScene extends Phaser.Scene {
                         x: x,
                         y: y,
                         dir: 3,
-                        emitting: 4,
                         pushable: true,
                         sprite: this.add.sprite(this.offsetX+x*64, this.offsetY+y*64, "tiles", Tile.MirrorLEmpty).setScale(2)
                         });
@@ -712,7 +723,6 @@ export class GameScene extends Phaser.Scene {
                         x: x,
                         y: y,
                         dir: 2,
-                        emitting: 4,
                         pushable: true,
                         sprite: this.add.sprite(this.offsetX+x*64, this.offsetY+y*64, "tiles", Tile.MirrorREmpty).setScale(2)
                         });
@@ -723,7 +733,6 @@ export class GameScene extends Phaser.Scene {
                         x: x,
                         y: y,
                         dir: 1,
-                        emitting: 4,
                         pushable: true,
                         sprite: this.add.sprite(this.offsetX+x*64, this.offsetY+y*64, "tiles", Tile.MirrorLEmpty).setScale(2)
                         });
@@ -734,51 +743,93 @@ export class GameScene extends Phaser.Scene {
         for (let y = 0; y<portalRows.length; y++) {
             for (let x = 0; x<portalRows[y].length; x++){
                 const thistile = portalRows[y][x];
+                let entity = this.getAnythingAt(x, y);
                 switch(thistile) {
                     case "w":
-                        this.entities.push ({
-                        type: "portal",
-                        x: x,
-                        y: y,
-                        dir: 0,
-                        emitting: 4,
-                        pushable: false,
-                        sprite: this.add.sprite(this.offsetX+x*64, this.offsetY+y*64, "tiles", Tile.PortalW).setScale(2)
-                        });
+                        if (entity){
+                            entity.portal = 0;
+                            entity.sprite2 = this.add.sprite(this.offsetX+x*64, this.offsetY+y*64, "tiles", Tile.PortalW).setScale(2);
+                        } else {
+                            this.entities.push ({
+                            type: "box",
+                            x: x,
+                            y: y,
+                            dir: 0,
+                            emitting: 4,
+                            portal: 0,
+                            group: 0,
+                            pushable: true,
+                            sprite: this.add.sprite(this.offsetX+x*64, this.offsetY+y*64, "tiles", Tile.Box).setScale(2),
+                            sprite2: this.add.sprite(this.offsetX+x*64, this.offsetY+y*64, "tiles", Tile.PortalW).setScale(2)
+                            });
+                        }
                         break;
                     case "a":
-                        this.entities.push ({
-                        type: "portal",
-                        x: x,
-                        y: y,
-                        dir: 3,
-                        emitting: 4,
-                        pushable: false,
-                        sprite: this.add.sprite(this.offsetX+x*64, this.offsetY+y*64, "tiles", Tile.PortalA).setScale(2)
-                        });
+                        if (entity){
+                            entity.portal = 3;
+                            entity.sprite2 = this.add.sprite(this.offsetX+x*64, this.offsetY+y*64, "tiles", Tile.PortalA).setScale(2);
+                        } else {
+                            this.entities.push ({
+                            type: "box",
+                            x: x,
+                            y: y,
+                            dir: 0,
+                            emitting: 4,
+                            portal: 3,
+                            group: 0,
+                            pushable: true,
+                            sprite: this.add.sprite(this.offsetX+x*64, this.offsetY+y*64, "tiles", Tile.Box).setScale(2),
+                            sprite2: this.add.sprite(this.offsetX+x*64, this.offsetY+y*64, "tiles", Tile.PortalA).setScale(2)
+                            });
+                        }
                         break;
                     case "s":
-                        this.entities.push ({
-                        type: "portal",
-                        x: x,
-                        y: y,
-                        dir: 2,
-                        emitting: 4,
-                        pushable: false,
-                        sprite: this.add.sprite(this.offsetX+x*64, this.offsetY+y*64, "tiles", Tile.PortalS).setScale(2)
-                        });
+                        if (entity){
+                            entity.portal = 2;
+                            entity.sprite2 = this.add.sprite(this.offsetX+x*64, this.offsetY+y*64, "tiles", Tile.PortalS).setScale(2);
+                        } else {
+                            this.entities.push ({
+                            type: "box",
+                            x: x,
+                            y: y,
+                            dir: 0,
+                            emitting: 4,
+                            portal: 2,
+                            group: 0,
+                            pushable: true,
+                            sprite: this.add.sprite(this.offsetX+x*64, this.offsetY+y*64, "tiles", Tile.Box).setScale(2),
+                            sprite2: this.add.sprite(this.offsetX+x*64, this.offsetY+y*64, "tiles", Tile.PortalS).setScale(2)
+                            });
+                        }
                         break;
                     case "d":
-                        this.entities.push ({
-                        type: "portal",
-                        x: x,
-                        y: y,
-                        dir: 1,
-                        emitting: 4,
-                        pushable: false,
-                        sprite: this.add.sprite(this.offsetX+x*64, this.offsetY+y*64, "tiles", Tile.PortalD).setScale(2)
-                        });
+                        if (entity){
+                            entity.portal = 1;
+                            entity.sprite2 = this.add.sprite(this.offsetX+x*64, this.offsetY+y*64, "tiles", Tile.PortalD).setScale(2);
+                        } else {
+                            this.entities.push ({
+                            type: "box",
+                            x: x,
+                            y: y,
+                            dir: 0,
+                            emitting: 4,
+                            portal: 1,
+                            group: 0,
+                            pushable: true,
+                            sprite: this.add.sprite(this.offsetX+x*64, this.offsetY+y*64, "tiles", Tile.Box).setScale(2),
+                            sprite2: this.add.sprite(this.offsetX+x*64, this.offsetY+y*64, "tiles", Tile.PortalD).setScale(2)
+                            });
+                        }
                         break;
+                }
+            }
+        }
+        for (let y = 0; y<directionRows.length; y++) {
+            for (let x = 0; x<directionRows[y].length; x++){
+                const thistile = directionRows[y][x];
+                let entity = this.getAnythingAt(x, y);
+                if (entity && thistile !== "." && entity.portal !== undefined){
+                    entity.group = Number(thistile);
                 }
             }
         }
