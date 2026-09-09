@@ -3,9 +3,8 @@
 export type Nivel = {
     id: string;
     nombre: string;
-    ancho?: number;
-    alto?: number;
     tablero: number[][];
+    ultimaModificacion: number;
   };
 
 export function guardarNiveles(niveles: Nivel[]): void {
@@ -17,7 +16,11 @@ export function obtenerNiveles(): Nivel[] {
     if (texto === null) {
      return [];
     }
-    return JSON.parse(texto);
+    const niveles: Nivel[] = JSON.parse(texto);
+    niveles.sort((nivelA, nivelB) => {
+      return nivelB.ultimaModificacion - nivelA.ultimaModificacion;
+    });
+    return niveles;
 }
 
 export function crearNivel(filas: number, columnas: number): Nivel {
@@ -45,6 +48,7 @@ export function crearNivel(filas: number, columnas: number): Nivel {
       id: nuevaId.toString(),
       nombre: 'Untitled Level ' + numeroNombre.toString(),
       tablero: tablero,
+      ultimaModificacion: Date.now(),
     };
     niveles.push(nivel);  
     guardarNiveles(niveles);
@@ -74,6 +78,7 @@ export function crearNivel(filas: number, columnas: number): Nivel {
     if (indice === -1) {
       return;
     }
+    nivelActualizado.ultimaModificacion = Date.now();
     nivelesLista[indice] = nivelActualizado;
     guardarNiveles(nivelesLista);
   }
@@ -144,6 +149,7 @@ export function crearNivel(filas: number, columnas: number): Nivel {
       id: nuevaId.toString(),
       nombre: nuevoNombre,
       tablero: nivelOriginal.tablero,
+      ultimaModificacion: Date.now(),
     }
       niveles.push(nivelDuplicado);
       guardarNiveles(niveles);
