@@ -90,6 +90,7 @@ export class GameScene extends Phaser.Scene {
 
     private offsetX = 0;
     private offsetY = 0;
+    private playeroffsetY = 24;
 
     private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
 
@@ -332,7 +333,7 @@ export class GameScene extends Phaser.Scene {
             player.x = exit.x;
             player.y = exit.y;
             player.dir = exit.portal;
-            player.sprite.setPosition(this.offsetX + player.x * 64, this.offsetY + player.y * 64);
+            player.sprite.setPosition(this.offsetX + player.x * 64, this.offsetY + player.y * 64 - this.playeroffsetY);
             switch(exit.portal) {
                 case 0:
                     this.operationNumber = 1;
@@ -444,7 +445,8 @@ export class GameScene extends Phaser.Scene {
             player.x = newX;
             player.y = newY;
             player.dir = dx !== 0 ? dx : dy;
-            player.sprite.setPosition(this.offsetX + player.x * 64, this.offsetY + player.y * 64);
+            player.sprite.setTexture("lindsey", this.opposite(dir)).setScale(4).setDepth(10);
+            player.sprite.setPosition(this.offsetX + player.x * 64, this.offsetY + player.y * 64 - this.playeroffsetY);
 
             const flag = this.entities.find(entity => entity.type === "flag");
 
@@ -523,6 +525,10 @@ export class GameScene extends Phaser.Scene {
             frameWidth: 32,
             frameHeight: 32,
         });
+        this.load.spritesheet("lindsey", "assets/lindsey.walking.anim.sheet.png", {
+            frameWidth: 16,
+            frameHeight: 28,
+        });
         this.load.text("level1", `assets/level1.txt`);
         this.load.text("level2", `assets/level2.txt`);
     }
@@ -593,7 +599,7 @@ export class GameScene extends Phaser.Scene {
                         y: y,
                         dir: 0,
                         pushable: true,
-                        sprite: this.add.sprite(this.offsetX+x*64, this.offsetY+y*64, "tiles", Tile.Player).setScale(2)
+                        sprite: this.add.sprite(this.offsetX+x*64, (this.offsetY+y*64)-this.playeroffsetY, "lindsey", 2).setScale(4).setDepth(10)
                         });
                         break;
                     case "b":
@@ -887,6 +893,8 @@ export class GameScene extends Phaser.Scene {
         }
 
         if (Phaser.Input.Keyboard.JustDown(this.cursors.left!) && this.menuup == 0) {
+            const player = this.entities.find(entity => entity.type === "player");
+            player.dir = 3;
             this.operationNumber = 0;
             this.history.push({entities: this.entities.map(entity => ({type: entity.type, x: entity.x, y: entity.y, dir: entity.dir}))
             });
@@ -900,6 +908,8 @@ export class GameScene extends Phaser.Scene {
         }
 
         if (Phaser.Input.Keyboard.JustDown(this.cursors.right!) && this.menuup == 0) {
+            const player = this.entities.find(entity => entity.type === "player");
+            player.dir = 1;
             this.operationNumber = 0;
             this.history.push({entities: this.entities.map(entity => ({type: entity.type, x: entity.x, y: entity.y, dir: entity.dir}))
             });
@@ -913,6 +923,8 @@ export class GameScene extends Phaser.Scene {
         }
 
         if (Phaser.Input.Keyboard.JustDown(this.cursors.up!) && this.menuup == 0) {
+            const player = this.entities.find(entity => entity.type === "player");
+            player.dir = 0;
             this.operationNumber = 0;
             this.history.push({entities: this.entities.map(entity => ({type: entity.type, x: entity.x, y: entity.y, dir: entity.dir}))
             });
@@ -926,6 +938,8 @@ export class GameScene extends Phaser.Scene {
         }
 
         if (Phaser.Input.Keyboard.JustDown(this.cursors.down!) && this.menuup == 0) {
+            const player = this.entities.find(entity => entity.type === "player");
+            player.dir = 2;
             this.operationNumber = 0;
             this.history.push({entities: this.entities.map(entity => ({type: entity.type, x: entity.x, y: entity.y, dir: entity.dir}))
             }); 
