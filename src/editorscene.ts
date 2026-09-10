@@ -927,6 +927,7 @@ this.botonPegar = crearBoton(this, x, y, 100, "Pegar", () => {
 //HOTBAR
 
 private crearHotbar(): void {
+  this.casillasHotbar = [];
   const y = 390;
   const tamaño = 42;
   const separacion = 48;
