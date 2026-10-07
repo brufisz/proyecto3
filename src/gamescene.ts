@@ -1748,7 +1748,7 @@ private cerrarMenuPausa() {
         if (this.modoTest === false && this.nivelId === "") {
             this.load.text(
                 "level",
-                "assets/levels/level" + this.levelNumber + ".txt"
+                "assets/level" + this.levelNumber + ".txt"
             );
         }
     }
@@ -2524,17 +2524,6 @@ private cerrarMenuPausa() {
             this.menuup = 0;
             this.scene.start("game", {level: this.levelNumber+1});
         }
-<<<<<<< HEAD
-
-=======
-        if (Phaser.Input.Keyboard.JustDown(this.escKey) && this.menuup == 0) {
-            this.menuup = 1;
-            this.selected = 0;
-            this.menuOverlay.setVisible(true);
-            for (const item of this.menuItems) item.setVisible(true);
-            this.updateMenu();
-        }
->>>>>>> cac7251 (laser animations?? unbelievable. also no they do not work.)
         if (Phaser.Input.Keyboard.JustDown(this.zKey) && this.menuup !== 1) {
             this.undoMove();
             return;
