@@ -1429,4 +1429,40 @@ export class CommunityDemoScene extends InterfazDemo {
       this.pagina < paginas - 1
     );
   }
+
+async cargarPublicaciones() {
+  try {
+    const publicaciones = await leerPublicaciones();
+    demo.niveles = [];
+    for (let i = 0; i < publicaciones.length; i++) {
+      const nivel = publicaciones[i];
+      let autorId = -1;
+      const usuario = demo.usuarioActual;
+      if (usuario !== null && nivel.usuario === usuario.nombre) {
+        autorId = usuario.id;
+      }
+      demo.niveles.push({
+        id: nivel.id,
+        nombre: nivel.nombre,
+        autorId: autorId,
+        autor: nivel.usuario,
+        publicado: nivel.publicado,
+        version: nivel.version,
+        descargas: -1
+      });
+    }
+    if (this.scene.isActive()) {
+      this.dibujarFilas();
+    }
+  } catch (error) {
+    console.error("Error al cargar publicaciones:", error);
+  }
 }
+
+
+
+  
+
+
+}
+

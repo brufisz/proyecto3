@@ -1,16 +1,20 @@
 import { InterfazDemo } from "./interfazDemo";
 import { demo, guardarSesion, continuarComoInvitado } from "./datosDemo";
 import { crearCampoTexto } from "./camposTexto";
+import { autenticarPerfil, registrarPerfil } from "./api";
 
 export class UsuariosDemoScene extends InterfazDemo {
 
   registro = false;
+  entrando = false;
 
   constructor() {
     super("usuariosDemo");
   }
 
   create() {
+    this.entrando = false;
+
     if (
       demo.usuarioActual !== null &&
       demo.usuarioActual !== undefined
@@ -125,6 +129,10 @@ export class UsuariosDemoScene extends InterfazDemo {
     });
 
     zona.on("pointerdown", () => {
+
+      if (this.entrando) {
+        return;
+      }
 
       if (!activa) {
         accion();
@@ -290,10 +298,8 @@ export class UsuariosDemoScene extends InterfazDemo {
 
     aviso.setOrigin(0.5);
 
-    let entrando = false;
-
-    const enviar = () => {
-      if (entrando) {
+    const enviar = async () => {
+      if (this.entrando) {
         return;
       }
 
@@ -312,74 +318,64 @@ export class UsuariosDemoScene extends InterfazDemo {
         return;
       }
 
-      const encontrado = demo.usuarios.find(usuario => {
+      this.entrando = true;
+      let cuentaCreada = false;
 
-        return usuario.nombre.toLowerCase() ===
-          nombreEscrito.toLowerCase();
-      });
-
-      if (this.registro) {
-
-        if (encontrado) {
-
-          aviso.setText(
-            "Ese nombre de usuario ya está ocupado."
-          );
-
-          return;
+      try {
+        if (this.registro) {
+          aviso.setText("Creando cuenta...");
+          await registrarPerfil(nombreEscrito, claveEscrita);
+          cuentaCreada = true;
         }
 
-        let nuevoId = 1;
+        aviso.setText("Iniciando sesión...");
 
-        for (const usuario of demo.usuarios) {
+        const perfil = await autenticarPerfil(
+          nombreEscrito,
+          claveEscrita
+        );
 
-          if (usuario.id >= nuevoId) {
-            nuevoId = usuario.id + 1;
+        demo.usuarioActual = {
+          id: perfil.profileID,
+          nombre: perfil.username,
+          contrasena: ""
+        };
+
+        guardarSesion();
+
+        nombre.blur();
+        clave.blur();
+
+        this.scene.start("menu");
+      } catch (error) {
+        this.entrando = false;
+        demo.usuarioActual = null;
+
+        let mensaje = "No se pudo completar la operación.";
+
+        if (error instanceof TypeError) {
+          mensaje = "No se pudo conectar con la API.";
+        }
+
+        if (error instanceof Error) {
+          if (error.message === "Perfil-ya-existe") {
+            mensaje = "Ese nombre de usuario ya está ocupado.";
+          }
+
+          if (
+            error.message === "Contraseña-incorrecta" ||
+            error.message === "Usuario-y/o-contraseña-incorrecta"
+          ) {
+            mensaje = "Usuario o contraseña incorrectos.";
           }
         }
 
-        const usuario = {
-          id: nuevoId,
-          nombre: nombreEscrito,
-          contrasena: claveEscrita
-        };
-
-        demo.usuarios.push(usuario);
-        demo.usuarioActual = usuario;
-
-      } else {
-
-        if (!encontrado) {
-
-          aviso.setText(
-            "Usuario o contraseña incorrectos."
-          );
-
-          return;
+        if (cuentaCreada) {
+          mensaje = "Cuenta creada. Probá la pestaña Iniciar sesión.";
         }
 
-        if (
-          encontrado.contrasena !==
-          claveEscrita
-        ) {
-
-          aviso.setText(
-            "Usuario o contraseña incorrectos."
-          );
-
-          return;
-        }
-
-        demo.usuarioActual = encontrado;
+        aviso.setText(mensaje);
       }
-
-      guardarSesion();
-      entrando = true;
-
-      nombre.blur();
-      clave.blur();
-
-      this.scene.start("menu");
     };
 
     let textoBoton = "ENTRAR";
@@ -416,12 +412,12 @@ export class UsuariosDemoScene extends InterfazDemo {
     });
 
     accesoInvitado.on("pointerdown", () => {
-      if (entrando) {
+      if (this.entrando) {
         return;
       }
 
       continuarComoInvitado();
-      entrando = true;
+      this.entrando = true;
       nombre.blur();
       clave.blur();
       this.scene.start("menu");
