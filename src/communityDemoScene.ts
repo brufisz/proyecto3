@@ -5,6 +5,8 @@ import { obtenerNiveles, crearBoton } from "./niveles";
 import { crearCampoTexto, MAX_BUSQUEDA } from "./camposTexto";
 import { mostrarConfirmacion } from "./popup";
 
+import { leerPublicaciones } from "./api";
+
 export class CommunityDemoScene extends InterfazDemo {
   pestana = "Community";
   busqueda = "";
@@ -483,6 +485,12 @@ export class CommunityDemoScene extends InterfazDemo {
     }
 
     this.dibujar();
+
+    leerPublicaciones().then((niveles) => {
+      console.log("Niveles del backend:", niveles);
+    }).catch((error) => {
+      console.log(error);
+    });
   }
 
   crearTab(
