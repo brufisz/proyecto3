@@ -5,7 +5,13 @@ import { obtenerNiveles, crearBoton } from "./niveles";
 import { crearCampoTexto, MAX_BUSQUEDA } from "./camposTexto";
 import { mostrarConfirmacion } from "./popup";
 
-import { leerPublicaciones } from "./api";
+import {
+  leerPublicaciones,
+  leerNivelesUsuario,
+  publicarNivelBackend,
+  despublicarNivelBackend,
+  renombrarPublicacionBackend
+} from "./api";
 
 export class CommunityDemoScene extends InterfazDemo {
   pestana = "Community";
@@ -19,6 +25,7 @@ export class CommunityDemoScene extends InterfazDemo {
   altoFilaCreada = 52;
 
   filas: Phaser.GameObjects.GameObject[] = [];
+  accionEnCurso = false;
 
   constructor() {
     super("communityDemo");
@@ -181,32 +188,6 @@ export class CommunityDemoScene extends InterfazDemo {
       return true;
     }
 
-    if (publicacion.tablero === undefined) {
-      return true;
-    }
-
-    if (publicacion.portales === undefined) {
-      return true;
-    }
-
-    if (publicacion.links === undefined) {
-      return true;
-    }
-
-    if (this.matricesIguales(publicacion.tablero, nivel.tablero) === false) {
-      return true;
-    }
-
-    if (this.matricesIguales(publicacion.portales, nivel.portales) === false) {
-      return true;
-    }
-
-    const links = this.obtenerLinksNivel(nivel);
-
-    if (this.matricesIguales(publicacion.links, links) === false) {
-      return true;
-    }
-
     return false;
   }
 
@@ -232,68 +213,121 @@ export class CommunityDemoScene extends InterfazDemo {
     return nuevoId;
   }
 
-  publicarNivel(nivel: any) {
+  async publicarNivel(nivel: any) {
     const usuario = demo.usuarioActual;
 
-    if (usuario === null || usuario === undefined) {
+    if (
+      usuario === null || usuario === undefined ||
+      usuario.id === 0 || this.accionEnCurso
+    ) {
       return;
     }
 
-    let publicacion = this.buscarPublicacionDeNivel(nivel);
+    this.accionEnCurso = true;
 
-    if (publicacion === null) {
-      const publicaciones: any[] = demo.niveles;
+    try {
+      const anterior = this.buscarPublicacionDeNivel(nivel);
 
-      publicacion = {
-        id: this.siguienteIdPublicacion(),
-        nivelOriginalId: nivel.id,
-        nombre: nivel.nombre,
-        autorId: usuario.id,
-        autor: usuario.nombre,
-        version: 1,
-        publicado: true,
-        descargas: 0,
-        tablero: this.copiarMatriz(nivel.tablero),
-        portales: this.copiarMatriz(nivel.portales),
-        links: this.copiarMatriz(this.obtenerLinksNivel(nivel))
-      };
-
-      publicaciones.push(publicacion);
-      return;
-    }
-
-    const habiaCambios = this.publicacionDesactualizada(
-      nivel,
-      publicacion
-    );
-
-    if (habiaCambios) {
-      this.copiarNivelAPublicacion(nivel, publicacion);
-
-      if (typeof publicacion.version !== "number") {
-        publicacion.version = 1;
-      } else {
-        publicacion.version++;
+      if (anterior !== null && anterior.nombre !== nivel.nombre) {
+        await renombrarPublicacionBackend(anterior.id, nivel.nombre);
       }
-    }
 
-    publicacion.publicado = true;
+      await publicarNivelBackend(usuario.nombre, nivel.nombre);
+
+      if (demo.usuarioActual !== usuario) {
+        return;
+      }
+
+      await this.cargarPublicaciones();
+
+      if (demo.usuarioActual === usuario && this.scene.isActive()) {
+        this.buscarPublicacionDeNivel(nivel);
+        this.cambiarPestana("Publicados");
+      }
+    } catch (error) {
+      this.mostrarError("No se pudo publicar el nivel", error);
+    } finally {
+      this.accionEnCurso = false;
+    }
   }
 
-  actualizarPublicacion(nivel: any, publicacion: any) {
-    if (publicacion === null || publicacion === undefined) {
+  async actualizarPublicacion(nivel: any, publicacion: any) {
+    const usuario = demo.usuarioActual;
+
+    if (
+      usuario === null || usuario === undefined || usuario.id === 0 ||
+      publicacion === null || publicacion === undefined ||
+      publicacion.autorId !== usuario.id || this.accionEnCurso
+    ) {
       return;
     }
 
-    this.copiarNivelAPublicacion(nivel, publicacion);
+    this.accionEnCurso = true;
 
-    if (typeof publicacion.version !== "number") {
-      publicacion.version = 1;
-    } else {
-      publicacion.version++;
+    try {
+      await renombrarPublicacionBackend(publicacion.id, nivel.nombre);
+
+      if (demo.usuarioActual === usuario) {
+        await this.cargarPublicaciones();
+      }
+    } catch (error) {
+      this.mostrarError("No se pudo actualizar el nombre", error);
+    } finally {
+      this.accionEnCurso = false;
+    }
+  }
+
+  async despublicarNivel(nivel: any) {
+    const usuario = demo.usuarioActual;
+
+    if (
+      usuario === null || usuario === undefined || usuario.id === 0 ||
+      nivel.autorId !== usuario.id || this.accionEnCurso
+    ) {
+      return;
     }
 
-    publicacion.publicado = true;
+    this.accionEnCurso = true;
+
+    try {
+      await despublicarNivelBackend(nivel.nombre);
+
+      if (demo.usuarioActual !== usuario) {
+        return;
+      }
+
+      await this.cargarPublicaciones();
+
+      if (demo.usuarioActual === usuario && this.scene.isActive()) {
+        this.cambiarPestana("Creados");
+      }
+    } catch (error) {
+      this.mostrarError("No se pudo despublicar el nivel", error);
+    } finally {
+      this.accionEnCurso = false;
+    }
+  }
+
+  mostrarError(titulo: string, error: any) {
+    console.error(titulo, error);
+
+    if (this.scene.isActive()) {
+      let mensaje = String(error);
+
+      if (error && typeof error.message === "string") {
+        mensaje = error.message;
+      }
+
+      window.alert(titulo + "\n\n" + mensaje);
+    }
+  }
+
+  textoDescargas(cantidad: number) {
+    if (cantidad < 0) {
+      return "Descargas: Error";
+    }
+
+    return cantidad + " descargas";
   }
 
   copiarPublicacionADescarga(publicacion: any, descarga: any) {
@@ -420,7 +454,9 @@ export class CommunityDemoScene extends InterfazDemo {
       links: this.copiarMatriz(nivel.links)
     });
 
-    nivel.descargas++;
+    if (nivel.descargas >= 0) {
+      nivel.descargas++;
+    }
 
     this.pestana = "Descargados";
     this.busqueda = "";
@@ -457,7 +493,7 @@ export class CommunityDemoScene extends InterfazDemo {
       fondo.removeAllListeners("pointerdown");
       fondo.removeAllListeners("pointerup");
       fondo.setAlpha(0.35);
-      return;
+      return fondo;
     }
 
     fondo.on("pointerover", () => {
@@ -467,6 +503,8 @@ export class CommunityDemoScene extends InterfazDemo {
     fondo.on("pointerout", () => {
       fondo.setAlpha(1);
     });
+
+    return fondo;
   }
 
   create() {
@@ -486,10 +524,8 @@ export class CommunityDemoScene extends InterfazDemo {
 
     this.dibujar();
 
-    leerPublicaciones().then((niveles) => {
-      console.log("Niveles del backend:", niveles);
-    }).catch((error) => {
-      console.log(error);
+    this.cargarPublicaciones().catch((error) => {
+      this.mostrarError("No se pudieron cargar los niveles", error);
     });
   }
 
@@ -905,7 +941,6 @@ export class CommunityDemoScene extends InterfazDemo {
               VERDE,
               () => {
                 this.publicarNivel(nivel);
-                this.cambiarPestana("Publicados");
               }
             );
           },
@@ -927,7 +962,6 @@ export class CommunityDemoScene extends InterfazDemo {
               0xe6c56a,
               () => {
                 this.actualizarPublicacion(nivel, publicacion);
-                this.dibujarFilas();
               }
             );
           },
@@ -1016,7 +1050,7 @@ export class CommunityDemoScene extends InterfazDemo {
       this.texto(
         80,
         y + 23,
-        nivel.descargas + " descargas",
+        this.textoDescargas(nivel.descargas),
         14
       ).setColor("#a5b4ce");
 
@@ -1109,7 +1143,7 @@ export class CommunityDemoScene extends InterfazDemo {
       this.texto(
         80,
         y + 23,
-        nivel.descargas + " descargas",
+        this.textoDescargas(nivel.descargas),
         14
       ).setColor("#a5b4ce");
 
@@ -1146,8 +1180,7 @@ export class CommunityDemoScene extends InterfazDemo {
             "Despublicar",
             ROJO,
             () => {
-              nivel.publicado = false;
-              this.cambiarPestana("Creados");
+              this.despublicarNivel(nivel);
             }
           );
         },
@@ -1285,17 +1318,11 @@ export class CommunityDemoScene extends InterfazDemo {
             return;
           }
 
-          mostrarConfirmacion(
-            this,
-            "Partida de prueba",
-            "¿Querés marcar este nivel como completado?",
-            "Completar",
-            VERDE,
-            () => {
-              nivel.completado = true;
-              this.dibujar();
-            }
-          );
+          this.scene.launch("game", {
+            nivelDescargado: nivel,
+            escenaAnterior: "communityDemo"
+          });
+          this.scene.sleep();
         },
         colorBoton
       );
@@ -1430,39 +1457,83 @@ export class CommunityDemoScene extends InterfazDemo {
     );
   }
 
-async cargarPublicaciones() {
-  try {
-    const publicaciones = await leerPublicaciones();
-    demo.niveles = [];
+  async cargarPublicaciones() {
+    const usuario = demo.usuarioActual;
+
+    if (usuario === null || usuario === undefined || usuario.id === 0) {
+      return;
+    }
+
+    const resultados = await Promise.all([
+      leerPublicaciones(),
+      leerNivelesUsuario(usuario.nombre)
+    ]);
+
+    if (demo.usuarioActual !== usuario) {
+      return;
+    }
+
+    const publicaciones = resultados[0].slice();
+    const propias = resultados[1];
+
+    for (let i = 0; i < propias.length; i++) {
+      let existe = false;
+
+      for (let j = 0; j < publicaciones.length; j++) {
+        if (publicaciones[j].id === propias[i].id) {
+          existe = true;
+          break;
+        }
+      }
+
+      if (existe === false) {
+        publicaciones.push(propias[i]);
+      }
+    }
+
+    const nuevos = demo.niveles.slice(0, 0);
+
     for (let i = 0; i < publicaciones.length; i++) {
       const nivel = publicaciones[i];
       let autorId = -1;
-      const usuario = demo.usuarioActual;
-      if (usuario !== null && nivel.usuario === usuario.nombre) {
+
+      if (nivel.usuario === usuario.nombre) {
         autorId = usuario.id;
       }
-      demo.niveles.push({
+
+      const publicacion: any = {
         id: nivel.id,
         nombre: nivel.nombre,
         autorId: autorId,
         autor: nivel.usuario,
         publicado: nivel.publicado,
         version: nivel.version,
-        descargas: -1
-      });
+        descargas: -1,
+      };
+
+      // Conserva la relación con el ID local dentro de esta sesión.
+      for (let j = 0; j < demo.niveles.length; j++) {
+        const anterior: any = demo.niveles[j];
+
+        if (anterior.id === nivel.id && anterior.autorId === autorId) {
+          publicacion.nivelOriginalId = anterior.nivelOriginalId;
+          break;
+        }
+      }
+
+      nuevos.push(publicacion);
     }
+
+    demo.niveles = nuevos;
+
     if (this.scene.isActive()) {
       this.dibujarFilas();
     }
-  } catch (error) {
-    console.error("Error al cargar publicaciones:", error);
   }
+
+
+
+
+
+
 }
-
-
-
-  
-
-
-}
-

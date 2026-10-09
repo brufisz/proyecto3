@@ -71,6 +71,8 @@ export class GameScene extends Phaser.Scene {
     //private levelMode = 0;
 
     init(data: any) {
+        this.nivelDescargado = null;
+        this.saliendoDelNivel = false;
         this.testeando = false;
         this.modoTest = false;
         this.nivelTest = "";
@@ -102,6 +104,12 @@ export class GameScene extends Phaser.Scene {
         if (data.history !== undefined) {
             this.history = data.history;
         }
+        if (
+            data.nivelDescargado !== undefined &&
+            data.nivelDescargado !== null
+        ) {
+            this.nivelDescargado = data.nivelDescargado;
+}
     }
 
     private menuup = 0;
@@ -142,6 +150,9 @@ export class GameScene extends Phaser.Scene {
     private staticRows: any;
     private deathmessage: Phaser.GameObjects.Text;
 
+    private nivelDescargado: any = null;
+    private saliendoDelNivel = false;
+
 
     //TEST
 
@@ -156,6 +167,9 @@ export class GameScene extends Phaser.Scene {
     ////////////////////////
 
     private obtenerNombreNivel() {
+        if (this.nivelDescargado !== null) {
+         return this.nivelDescargado.nombre;
+        }
         if (this.nivelId !== "") {
             const nivel = obtenerNivel(this.nivelId);
             if (nivel !== undefined) {
@@ -310,7 +324,7 @@ nombre.setOrigin(0, 0.5);
 
         nombre.setText(nombreVisible + "...");
     }
-    if (this.modoTest || this.nivelId !== "") {
+    if (this.modoTest || this.testeando || this.nivelId !== "") {
         const etiquetaTest = this.add.text(
             nombre.x + nombre.width + 8,
             nombre.y,
@@ -417,15 +431,63 @@ nombre.setOrigin(0, 0.5);
 }
 
 
-    private reiniciarNivel() {
+        private reiniciarNivel() {
         this.scene.restart({
             modoTest: this.modoTest,
             nivelTest: this.nivelTest,
             nivelId: this.nivelId,
+            testeando: this.testeando,
+            nivelDescargado: this.nivelDescargado,
+            escenaAnterior: this.escenaAnterior,
             level: this.levelNumber
         });
-    }
+        }
 
+        private volver() {
+            if (this.saliendoDelNivel) {
+                return;
+            }
+            this.saliendoDelNivel = true;
+            this.entities = [];
+            for (let i = 0; i < this.lasers.length; i++) {
+                this.lasers[i].destroy();
+            }
+            this.lasers = [];
+            this.menuup = 0;
+            this.playerMoving = false;
+            this.inputBuffer = "";
+            this.holdBufferOpen = false;
+            if (this.scene.isSleeping(this.escenaAnterior)) {
+                this.scene.wake(this.escenaAnterior);
+                this.scene.stop();
+                return;
+            }
+            this.scene.start(this.escenaAnterior);
+        }
+
+        private ganarNivel() {
+            if (this.saliendoDelNivel) {
+                return;
+            }
+            if (
+                this.modoTest ||
+                this.testeando ||
+                this.nivelId !== ""
+            ) {
+                this.volver();
+                return;
+            }
+            if (this.nivelDescargado !== null) {
+                this.nivelDescargado.completado = true;
+                this.volver();
+                return;
+            }
+            this.saliendoDelNivel = true;
+            this.scene.start("game", {
+                level: this.levelNumber + 1,
+                escenaAnterior: this.escenaAnterior
+            });
+        }
     private undoMove() {
         const state = this.history.pop();
         if (!state) {
@@ -600,21 +662,7 @@ private abrirMenuPausa() {
         0xe57373,
         1004,
         () => {
-            this.entities = [];
-            for (let i = 0; i < this.lasers.length; i++) {
-                this.lasers[i].destroy();
-            }
-            this.lasers = [];
-            this.menuup = 0;
-            this.playerMoving = false;
-            this.inputBuffer = "";
-            this.holdBufferOpen = false;
-            if (this.scene.isSleeping(this.escenaAnterior)) {
-                this.scene.wake(this.escenaAnterior);
-                this.scene.stop();
-                return;
-            }
-            this.scene.start(this.escenaAnterior);
+            this.volver();
         }
     );
 
@@ -1307,11 +1355,15 @@ private cerrarMenuPausa() {
             this.deathmessage.setVisible(true);
         }
         const flag = this.entities.find(entity => entity.type === "flag");
-        if (flag && player.x === flag.x && player.y === flag.y && this.winConditionsMet() && this.winConditionsMet2()) {
-            this.entities = [];
-            for (const laser of this.lasers) laser.destroy();
-            this.lasers = [];
-            this.scene.start("game", {level: this.levelNumber+1});
+        if (
+            this.menuup === 0 &&
+            flag &&
+            player.x === flag.x &&
+            player.y === flag.y &&
+            this.winConditionsMet() &&
+            this.winConditionsMet2()
+        ) {
+            this.ganarNivel();
         }
         return true;
         }
@@ -1745,7 +1797,7 @@ private cerrarMenuPausa() {
             frameWidth: 16,
             frameHeight: 16,
         });
-        if (this.modoTest === false && this.nivelId === "") {
+        if(this.modoTest === false && this.nivelId === "" && this.nivelDescargado === null) {
             this.load.text(
                 "level",
                 "assets/level" + this.levelNumber + ".txt"
@@ -1948,11 +2000,15 @@ private cerrarMenuPausa() {
         let level = "";
         if (this.modoTest) {
             level = this.nivelTest;
+        } else if (this.nivelDescargado !== null) {
+            level = convertirNivel(this.nivelDescargado);
         } else if (this.nivelId !== "") {
             const nivel = obtenerNivel(this.nivelId);
+
             if (nivel === undefined) {
                 return;
             }
+
             level = convertirNivel(nivel);
         } else {
             level = this.cache.text.get("level");
@@ -2387,7 +2443,9 @@ private cerrarMenuPausa() {
             this.updatePosition(0, 1, 0);
             this.playerVertical = true; 
         }
-
+        if (this.saliendoDelNivel) {
+            return;
+        }
         for (const laser of this.lasers) {
             laser.destroy();
         }
@@ -2398,6 +2456,9 @@ private cerrarMenuPausa() {
     }
 
     update() {
+        if (this.saliendoDelNivel) {
+         return;
+        }
         if (Phaser.Input.Keyboard.JustDown(this.escKey)) {
             if (this.menuup == 0) {
                 this.abrirMenuPausa();
