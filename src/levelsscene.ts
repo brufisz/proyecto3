@@ -7,7 +7,8 @@ import {
   eliminarNivel,
   crearBoton,
   renombrarNivel,
-  duplicarNivel
+  duplicarNivel,
+  cargarNivelesServidor
 } from "./niveles";
 
 import {
@@ -26,9 +27,6 @@ export class LevelsScene extends Phaser.Scene {
   busquedaCommunity = "";
   busqueda = "";
 
-  filas = 9;
-  columnas = 15;
-
   paginaActual = 0;
   nivelesPorPagina = 4;
 
@@ -38,7 +36,9 @@ export class LevelsScene extends Phaser.Scene {
   botonSiguiente: Phaser.GameObjects.Rectangle | null = null;
   textoPagina: Phaser.GameObjects.Text | null = null;
 
-  finalizarNombre: ((guardar: boolean) => void) | null = null;
+  finalizarNombre: ((guardar: boolean) => Promise<void>) | null = null;
+  ocupada = false;
+  estadoConexion: Phaser.GameObjects.Text | null = null;
 
   constructor() {
     super("LevelsScene");
@@ -53,6 +53,8 @@ export class LevelsScene extends Phaser.Scene {
     this.botonSiguiente = null;
     this.textoPagina = null;
     this.finalizarNombre = null;
+    this.ocupada = false;
+    this.estadoConexion = null;
 
     if (datos === undefined || datos === null) {
       return;
@@ -73,8 +75,9 @@ export class LevelsScene extends Phaser.Scene {
     }
   }
 
-  volver() {
-    this.cerrarNombre(true);
+  async volver() {
+    const pudoGuardar = await this.operar(async () => { await this.cerrarNombre(true); });
+    if (pudoGuardar === false) return;
 
     const destino = this.escenaAnterior;
     const busqueda = this.busquedaCommunity;
@@ -247,16 +250,10 @@ export class LevelsScene extends Phaser.Scene {
       0xb0d782,
       false,
       () => {
-        this.cerrarNombre(true);
-
-        const nivel = crearNivel(this.filas, this.columnas);
-
-        if (nivel === undefined || nivel === null) {
-          return;
-        }
-
-        this.scene.start("editor", {
-          nivelId: nivel.id
+        this.operar(async () => {
+          await this.cerrarNombre(true);
+          const nivel = await crearNivel(10, 16);
+          this.scene.start("editor", { nivelId: nivel.id });
         });
       }
     );
@@ -317,7 +314,7 @@ export class LevelsScene extends Phaser.Scene {
       180,
       "Anterior",
       () => {
-        this.cerrarNombre(true);
+        this.cerrarNombre(false);
 
         if (this.paginaActual > 0) {
           this.paginaActual--;
@@ -341,7 +338,7 @@ export class LevelsScene extends Phaser.Scene {
       180,
       "Siguiente",
       () => {
-        this.cerrarNombre(true);
+        this.cerrarNombre(false);
         this.paginaActual++;
         this.mostrarNiveles();
       },
@@ -355,6 +352,30 @@ export class LevelsScene extends Phaser.Scene {
     });
 
     this.mostrarNiveles();
+    this.operar(async () => {
+      await cargarNivelesServidor();
+      this.mostrarNiveles();
+    });
+  }
+
+  async operar(accion: () => Promise<void>): Promise<boolean> {
+    if (this.ocupada) return false;
+    this.ocupada = true;
+    try {
+      await accion();
+      return true;
+    } catch (error: any) {
+      let mensaje = String(error);
+      if (error && typeof error.message === "string") {
+        mensaje = error.message;
+      }
+      if (this.scene.isActive()) {
+        window.alert(mensaje);
+      }
+      return false;
+    } finally {
+      this.ocupada = false;
+    }
   }
 
   normalizarBusqueda(texto: string) {
@@ -415,7 +436,7 @@ export class LevelsScene extends Phaser.Scene {
   }
 
   mostrarNiveles() {
-    this.cerrarNombre(true);
+    this.cerrarNombre(false);
 
     for (let i = 0; i < this.objetosLista.length; i++) {
       const objeto = this.objetosLista[i];
@@ -521,10 +542,9 @@ export class LevelsScene extends Phaser.Scene {
         90,
         "Editar",
         () => {
-          this.cerrarNombre(true);
-
-          this.scene.start("editor", {
-            nivelId: nivel.id
+          this.operar(async () => {
+            await this.cerrarNombre(true);
+            this.scene.start("editor", { nivelId: nivel.id });
           });
         },
         VERDE
@@ -536,13 +556,10 @@ export class LevelsScene extends Phaser.Scene {
         90,
         "Test",
         () => {
-          this.cerrarNombre(true);
-          this.scene.launch("game", {
-            nivelId: nivel.id,
-            escenaAnterior: "LevelsScene",
-            testeando: true
+          this.operar(async () => {
+            await this.cerrarNombre(true);
+            this.scene.start("game", { nivelId: nivel.id });
           });
-          this.scene.sleep();
         },
         0xe6c56a
       );
@@ -553,9 +570,11 @@ export class LevelsScene extends Phaser.Scene {
         90,
         "Duplicar",
         () => {
-          this.cerrarNombre(true);
-          duplicarNivel(nivel.id);
-          this.mostrarNiveles();
+          this.operar(async () => {
+            await this.cerrarNombre(true);
+            await duplicarNivel(nivel.id);
+            this.mostrarNiveles();
+          });
         },
         0xb39ddb
       );
@@ -566,7 +585,7 @@ export class LevelsScene extends Phaser.Scene {
         90,
         "Eliminar",
         () => {
-          this.cerrarNombre(true);
+          this.cerrarNombre(false);
 
           mostrarConfirmacion(
             this,
@@ -576,8 +595,10 @@ export class LevelsScene extends Phaser.Scene {
             "Eliminar",
             ROJO,
             () => {
-              eliminarNivel(nivel.id);
-              this.mostrarNiveles();
+              this.operar(async () => {
+                await eliminarNivel(nivel.id);
+                this.mostrarNiveles();
+              });
             }
           );
         },
@@ -649,9 +670,9 @@ export class LevelsScene extends Phaser.Scene {
     }
   }
 
-  cerrarNombre(guardar: boolean) {
+  async cerrarNombre(guardar: boolean): Promise<void> {
     if (this.finalizarNombre !== null) {
-      this.finalizarNombre(guardar);
+      await this.finalizarNombre(guardar);
     }
   }
 
@@ -660,7 +681,7 @@ export class LevelsScene extends Phaser.Scene {
     nombreOriginal: string,
     texto: Phaser.GameObjects.Text
   ) {
-    this.cerrarNombre(true);
+    this.cerrarNombre(false);
 
     const input = document.createElement("input");
 
@@ -672,7 +693,7 @@ export class LevelsScene extends Phaser.Scene {
     input.style.height = "36px";
     input.style.boxSizing = "border-box";
     input.style.margin = "0";
-    input.style.fontFamily = '"Fuente"';
+    input.style.fontFamily = '"Fuente", monospace';
     input.style.fontSize = "16px";
     input.style.lineHeight = "32px";
     input.style.backgroundColor = "#171a2e";
@@ -693,7 +714,7 @@ export class LevelsScene extends Phaser.Scene {
 
     texto.setVisible(false);
 
-    const finalizar = (guardar: boolean) => {
+    const finalizar = async (guardar: boolean): Promise<void> => {
       if (this.finalizarNombre !== finalizar) {
         return;
       }
@@ -725,7 +746,7 @@ export class LevelsScene extends Phaser.Scene {
         return;
       }
 
-      renombrarNivel(id, nuevoNombre);
+      await renombrarNivel(id, nuevoNombre);
       this.mostrarNiveles();
     };
 
@@ -744,7 +765,7 @@ export class LevelsScene extends Phaser.Scene {
 
       if (evento.key === "Enter") {
         evento.preventDefault();
-        finalizar(true);
+        this.operar(async () => { await finalizar(true); });
       }
 
       if (evento.key === "Escape") {
@@ -754,7 +775,9 @@ export class LevelsScene extends Phaser.Scene {
     });
 
     input.addEventListener("blur", () => {
-      finalizar(true);
+      if (this.finalizarNombre === finalizar) {
+        this.operar(async () => { await finalizar(true); });
+      }
     });
 
     input.focus();

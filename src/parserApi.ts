@@ -1,4 +1,3 @@
-
 //TIPADO
 
 export type NivelEditor = {
@@ -43,9 +42,8 @@ type Cabecera = {
   links?: number[][];
 };
 
-
-const MARCA_CABECERA = "laser-sokoban/editor/1:";
-const MARCA_CELDA = "laser-sokoban/celda/1:";
+const MARCA_CABECERA = "community/editor/1:";
+const MARCA_CELDA = "community/celda/1:";
 
 function comprobarMatriz(matriz: number[][], filas: number, columnas: number): void {
   if (!Array.isArray(matriz) || matriz.length !== filas) {
@@ -84,7 +82,7 @@ function copiarLinks(links: number[][], filas: number, columnas: number): number
   return copia;
 }
 
-//EDITOR A API
+// CONVERSOR EDITOR -> API
 
 export function editorAApi(nivel: NivelEditor, usuario: string, existente?: NivelAPI): NivelAPI {
   if (typeof usuario !== "string" || usuario.trim() === "") {
@@ -93,10 +91,11 @@ export function editorAApi(nivel: NivelEditor, usuario: string, existente?: Nive
   if (typeof nivel.nombre !== "string" || nivel.nombre.trim() === "") {
     throw new Error("Falta el nombre del nivel.");
   }
-  if (typeof nivel.id !== "string" || nivel.id.trim() === "") {
-    throw new Error("ID local inválido.");
+  if (typeof nivel.id !== "string" || !Number.isFinite(nivel.ultimaModificacion)) {
+    throw new Error("ID local o fecha invalida.");
   }
-  if (!Array.isArray(nivel.tablero) || nivel.tablero.length === 0 || !Array.isArray(nivel.tablero[0]) || nivel.tablero[0].length === 0) {
+  if (!Array.isArray(nivel.tablero) || nivel.tablero.length === 0 ||
+      !Array.isArray(nivel.tablero[0]) || nivel.tablero[0].length === 0) {
     throw new Error("El tablero esta vacio.");
   }
   const filas = nivel.tablero.length;
@@ -150,6 +149,8 @@ export function editorAApi(nivel: NivelEditor, usuario: string, existente?: Nive
   return resultado;
 }
 
+//API A EDITOR
+
 export function apiAEditor(nivel: NivelAPI, idLocal?: string): NivelEditor {
   if (!Array.isArray(nivel.elementos) || nivel.elementos.length < 2) {
     throw new Error("No se recibio un nivel del editor.");
@@ -169,10 +170,10 @@ export function apiAEditor(nivel: NivelAPI, idLocal?: string): NivelEditor {
     }
   }
   if (cabecera === undefined) {
-    throw new Error("Formato anterior o desconocido. Falta el conversor de tipos y orientaciones de ese formato.");
+    throw new Error("Falta la cabecera del nivel.");
   }
   if (cabecera === null || cantidadCabeceras !== 1 ||
-      !Number.isSafeInteger(cabecera.filas) || !Number.isSafeInteger(cabecera.columnas) ||
+      !Number.isInteger(cabecera.filas) || !Number.isInteger(cabecera.columnas) ||
       cabecera.filas < 1 || cabecera.columnas < 1 ||
       cabecera.filas * cabecera.columnas !== nivel.elementos.length - 1 ||
       typeof cabecera.idLocal !== "string" || !Number.isFinite(cabecera.ultimaModificacion)) {
@@ -196,14 +197,14 @@ export function apiAEditor(nivel: NivelAPI, idLocal?: string): NivelEditor {
     if (!propiedad.startsWith(MARCA_CELDA)) throw new Error("Celda de otro formato.");
     const x = elemento.posicionX;
     const y = elemento.posicionY;
-    if (!Number.isSafeInteger(x) || !Number.isSafeInteger(y) ||
+    if (!Number.isInteger(x) || !Number.isInteger(y) ||
         x < 0 || y < 0 || x >= cabecera.columnas || y >= cabecera.filas) {
       throw new Error("Celda fuera del tablero.");
     }
     if (leidas[y][x] === true) throw new Error("Hay una celda duplicada.");
     const datos: unknown = JSON.parse(propiedad.substring(MARCA_CELDA.length));
     if (!Array.isArray(datos) || datos.length !== 2 ||
-        !Number.isSafeInteger(datos[0]) || !Number.isSafeInteger(datos[1])) {
+        !Number.isInteger(datos[0]) || !Number.isInteger(datos[1])) {
       throw new Error("Los datos de la celda son invalidos.");
     }
     tablero[y][x] = datos[0];

@@ -189,7 +189,8 @@ export class EditorScene extends Phaser.Scene {
     [3, 4, 5, 6],
     [11, 12, 13, 14],
     [27, 28, 29, 30],
-    [41, 200, 201]
+    [41, 200, 201],
+    [66, 25]
   ];
 
   private casillasHotbar: Phaser.GameObjects.Rectangle[] = [];
@@ -1850,7 +1851,7 @@ this.bordeTooltipTile.setVisible(false);
     });
   }
 
-  private guardarNivelActual(): void {
+  private async guardarNivelActual(): Promise<void> {
     if (
       this.nivelValido() === false ||
       this.hayCambiosSinGuardar() === false
@@ -1872,10 +1873,20 @@ this.bordeTooltipTile.setVisible(false);
     nivel.portales = this.getPortalState();
     nivel.links = this.copiarLinks();
 
-    actualizarNivel(nivel);
+    const estadoEnviado = this.getEditorState();
 
-    this.estadoGuardado = this.getEditorState();
-    this.actualizarInterfaz();
+    try {
+      await actualizarNivel(nivel);
+      this.estadoGuardado = estadoEnviado;
+    } catch (error) {
+      if (this.scene.isActive()) {
+        window.alert("No se pudo guardar el nivel.\n\n" + String(error));
+      }
+    }
+
+    if (this.scene.isActive()) {
+      this.actualizarInterfaz();
+    }
   }
 
   private actualizarInterfaz(): void {

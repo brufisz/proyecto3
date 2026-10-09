@@ -3,6 +3,9 @@ import Phaser from "phaser";
 import { obtenerNivel } from "./niveles";
 import { convertirNivel } from "./parser";
 
+import { demo } from "./datosDemo";
+import { completarNivelDescargadoBackend } from "./api";
+
 interface Entity {
     type: string;
     x: number;
@@ -79,6 +82,11 @@ export class GameScene extends Phaser.Scene {
         this.nivelId = "";
         this.levelNumber = 1;
         this.escenaAnterior = "menu";
+        this.idGlobalDescargado = null;
+        this.victoriaDescargadaEnCurso = false;
+        if (data && typeof data.idGlobal === "number") {
+        this.idGlobalDescargado = data.idGlobal;
+        }
         if (data === undefined || data === null) {
             return;
         }
@@ -111,6 +119,9 @@ export class GameScene extends Phaser.Scene {
             this.nivelDescargado = data.nivelDescargado;
 }
     }
+
+    private idGlobalDescargado: number | null = null;
+    private victoriaDescargadaEnCurso = false;
 
     private menuup = 0;
     private menuOverlay!: Phaser.GameObjects.Rectangle;
@@ -182,6 +193,24 @@ export class GameScene extends Phaser.Scene {
         return "Nivel " + this.levelNumber;
     }
 
+    private async registrarVictoriaDescargada(): Promise<void> {
+        if (this.victoriaDescargadaEnCurso || this.idGlobalDescargado === null) return;
+        this.victoriaDescargadaEnCurso = true;
+        try {
+          const usuario = demo.usuarioActual;
+          if (usuario === null || usuario === undefined) {
+            throw new Error("No hay sesion activa.");
+          }
+          await completarNivelDescargadoBackend(usuario.nombre, this.idGlobalDescargado);
+        } catch (error: any) {
+          let mensaje = String(error);
+          if (error && typeof error.message === "string") mensaje = error.message;
+          window.alert("Se gano el nivel, pero no se pudo guardar el progreso:\n\n" + mensaje);
+        }
+        this.scene.wake("communityDemo");
+        this.scene.stop();
+      }
+      
     private crearBotonJuego(
         x: number,
         y: number,
@@ -439,7 +468,8 @@ nombre.setOrigin(0, 0.5);
             testeando: this.testeando,
             nivelDescargado: this.nivelDescargado,
             escenaAnterior: this.escenaAnterior,
-            level: this.levelNumber
+            level: this.levelNumber,
+            idGlobal: this.idGlobalDescargado
         });
         }
 
@@ -469,16 +499,16 @@ nombre.setOrigin(0, 0.5);
             if (this.saliendoDelNivel) {
                 return;
             }
+            if (this.idGlobalDescargado !== null) {
+                this.saliendoDelNivel = true;
+                this.registrarVictoriaDescargada();
+                return;
+            }
             if (
                 this.modoTest ||
                 this.testeando ||
                 this.nivelId !== ""
             ) {
-                this.volver();
-                return;
-            }
-            if (this.nivelDescargado !== null) {
-                this.nivelDescargado.completado = true;
                 this.volver();
                 return;
             }
@@ -488,6 +518,7 @@ nombre.setOrigin(0, 0.5);
                 escenaAnterior: this.escenaAnterior
             });
         }
+
     private undoMove() {
         const state = this.history.pop();
         if (!state) {
