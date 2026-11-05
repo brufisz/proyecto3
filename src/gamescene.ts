@@ -2006,11 +2006,10 @@ export class GameScene extends Phaser.Scene {
             let sourceY = source.sprite.y;
             if (ray.x !== undefined) sourceX = ray.x;
             if (ray.y !== undefined) sourceY = ray.y;
-            const row = Math.max(0, Math.min(this.staticRows.length - 1, Math.round((sourceY - this.offsetY) / this.tilesize)));
             let distance = 0;
-            if (dx === 1) distance = this.offsetX + (this.staticRows[row].length - 1) * this.tilesize - sourceX;
+            if (dx === 1) distance = this.offsetX + (this.columnasNivel - 1) * this.tilesize - sourceX;
             else if (dx === -1) distance = sourceX - this.offsetX;
-            else if (dy === 1) distance = this.offsetY + (this.staticRows.length - 1) * this.tilesize - sourceY;
+            else if (dy === 1) distance = this.offsetY + (this.filasNivel - 1) * this.tilesize - sourceY;
             else distance = sourceY - this.offsetY;
             let target: Entity | undefined;
             let aligned = false;
@@ -2237,7 +2236,7 @@ export class GameScene extends Phaser.Scene {
         if(this.getPortalAt(nextX, nextY, this.opposite(dir))) {
             const entry = this.getPortalAt(nextX, nextY);
             if (entry !== undefined) {
-            const exit = this.findPair(entry.group, entry);
+            const exit = this.findPair(entry);
             if (exit) this.setEmitting(exit, exit.portal, phase);
             return;
             }
@@ -2696,7 +2695,7 @@ export class GameScene extends Phaser.Scene {
 
         if (frontPortal && !frontPortal.pushable) {
             const entry = frontPortal;
-            const exit = this.findPair(entry.group, entry);
+            const exit = this.findPair(entry);
             const savedPlayerX = player.x, savedPlayerY = player.y, savedPlayerDir = player.dir;
             if (!exit){
                 console.log("ERROR: COULD NOT FIND EXIT PORTAL @ gamescene.ts; this.findPair unexpectedly returned undefined");
@@ -2741,7 +2740,7 @@ export class GameScene extends Phaser.Scene {
 
             if (entity.portal !== undefined && entity.portal === dir && this.isPortalActive(entity)) {
                 const entry = entity;
-                const exit = this.findPair(entry.group, entry);
+                const exit = this.findPair(entry);
                 if (!exit) return false;
                 const savedPlayerX = player.x, savedPlayerY = player.y, savedPlayerDir = player.dir;
 
@@ -2778,7 +2777,7 @@ export class GameScene extends Phaser.Scene {
                     console.log("ERROR: I GENUINELY DON'T KNOW HOW YOU GOT HERE BUT A PORTAL STOPPED EXISTING BETWEEN 2 CONSECUTIVE LINES");
                     return false;
                 }
-                const exit = this.findPair(entry.group, entry);
+                const exit = this.findPair(entry);
                 if (!exit) {
                     console.log("ERROR: COULD NOT FIND EXIT PORTAL; this.findPair unexpectedly returned undefined");
                     return false;
@@ -2871,7 +2870,7 @@ export class GameScene extends Phaser.Scene {
 
                 if (entity.portal !== undefined && entity.portal === this.opposite(dir) && otherEntity && this.isPortalActive(entity)) {
                     const entry = entity;
-                    const exit = this.findPair(entry.group, entry);
+                    const exit = this.findPair(entry);
 
                     if (!exit) {
                         return false;
@@ -3056,7 +3055,7 @@ export class GameScene extends Phaser.Scene {
                 console.log("ERROR: I GENUINELY DON'T KNOW HOW YOU GOT HERE BUT A PORTAL STOPPED EXISTING BETWEEN 2 CONSECUTIVE LINES");
                 return false;
             }
-            const exit = this.findPair(entry.group, entry);
+            const exit = this.findPair(entry);
             if (!exit) {
                 console.log("ERROR: COULD NOT FIND EXIT PORTAL @ gamescene.ts; this.findPair unexpectedly returned undefined");
                 return false;
