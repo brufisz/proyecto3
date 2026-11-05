@@ -5,356 +5,406 @@ interface NivelParseable {
   darkLayer?: number[][];
 }
 
-interface ConversionTile {
-  capa: number;
-  caracter: string;
-}
-
-// Capa:
-// 0 = estatica
-// 1 = dinamica
-// 2 = laser
-// -1 = ignorar
-
-const tablaTiles: ConversionTile[] = [
-  { capa: -1, caracter: "" }, // 0
-  { capa: -1, caracter: "" }, // 1 Vacio
-  { capa: 0, caracter: "X" }, // 2 Placa de presion
-
-  { capa: 2, caracter: "g" }, // 3 Espejo arriba
-  { capa: 2, caracter: "f" }, // 4 Espejo abajo
-  { capa: 2, caracter: "t" }, // 5 Espejo izquierda
-  { capa: 2, caracter: "h" }, // 6 Espejo derecha
-
-  { capa: -1, caracter: "" }, // 7
-  { capa: -1, caracter: "" }, // 8
-  { capa: -1, caracter: "" }, // 9
-  { capa: -1, caracter: "" }, // 10
-
-  { capa: 2, caracter: "w" }, // 11 Emisor arriba
-  { capa: 2, caracter: "s" }, // 12 Emisor abajo
-  { capa: 2, caracter: "a" }, // 13 Emisor izquierda
-  { capa: 2, caracter: "d" }, // 14 Emisor derecha
-
-  { capa: -1, caracter: "" }, // 15 Piso visual
-
-  { capa: 0, caracter: "0" }, // 16 Borde - frame 15
-  { capa: 0, caracter: "1" }, // 17 Borde - frame 16
-  { capa: 0, caracter: "2" }, // 18 Borde - frame 17
-  { capa: 0, caracter: "3" }, // 19 Borde - frame 18
-  { capa: 0, caracter: "4" }, // 20 Borde - frame 19
-  { capa: 0, caracter: "5" }, // 21 Borde - frame 20
-  { capa: 0, caracter: "6" }, // 22 Borde - frame 21
-  { capa: 0, caracter: "7" }, // 23 Borde - frame 22
-  { capa: 0, caracter: "8" }, // 24 Borde - frame 23
-
-  { capa: -1, caracter: "" }, // 25
-  { capa: -1, caracter: "" }, // 26
-
-  { capa: 2, caracter: "i" }, // 27 Receptor arriba
-  { capa: 2, caracter: "k" }, // 28 Receptor abajo
-  { capa: 2, caracter: "j" }, // 29 Receptor izquierda
-  { capa: 2, caracter: "l" }, // 30 Receptor derecha
-
-  { capa: -1, caracter: "" }, // 31
-  { capa: -1, caracter: "" }, // 32
-
-  { capa: 1, caracter: "c" }, // 33 Maquinaria doble: izquierda
-  { capa: 1, caracter: "v" }, // 34 Maquinaria doble: derecha
-  { capa: -1, caracter: "" }, // 35 Relieve de 33
-  { capa: -1, caracter: "" }, // 36 Relieve de 34
-
-  { capa: 1, caracter: "b" }, // 37 Caja
-  { capa: -1, caracter: "" }, // 38 Relieve de caja
-  { capa: 0, caracter: "#" }, // 39 Pared
-  { capa: -1, caracter: "" }, // 40 Relieve de pared
-
-  { capa: 1, caracter: "z" }, // 41 Maquinaria simple
-  { capa: -1, caracter: "" }, // 42 Relieve de maquinaria simple
-
-  { capa: 1, caracter: "x" }, // 43 Parte de maquinaria 201
-  { capa: 1, caracter: "a" }, // 44 Parte de maquinaria 201
-  { capa: 1, caracter: "s" }, // 45 Parte de maquinaria 201
-  { capa: 1, caracter: "q" }, // 46 Parte de maquinaria 201
-  { capa: 1, caracter: "w" }, // 47 Parte de maquinaria 201
-  { capa: -1, caracter: "" }, // 48 Relieve de 46
-  { capa: -1, caracter: "" }, // 49 Relieve de 47
-
-  { capa: -1, caracter: "" }, // 50 Portal arriba
-  { capa: -1, caracter: "" }, // 51 Portal abajo
-  { capa: -1, caracter: "" }, // 52 Relieve de portal abajo
-  { capa: -1, caracter: "" }, // 53 Portal izquierda
-  { capa: -1, caracter: "" }, // 54 Relieve de portal izquierda
-  { capa: -1, caracter: "" }, // 55 Portal derecha
-  { capa: -1, caracter: "" }, // 56 Relieve de portal derecha
-
-  { capa: -1, caracter: "" }, // 57
-  { capa: -1, caracter: "" }, // 58
-  { capa: -1, caracter: "" }, // 59
-  { capa: -1, caracter: "" }, // 60
-  { capa: -1, caracter: "" }, // 61
-  { capa: -1, caracter: "" }, // 62
-  { capa: -1, caracter: "" }, // 63
-
-  { capa: 0, caracter: "#" }, // 64 Pared conectada con la de arriba
-  { capa: -1, caracter: "" }, // 65 Relieve de pared conectada
-
-  { capa: 1, caracter: "p" }, // 66 Jugador
-  { capa: -1, caracter: "" },  // 67 Relieve del jugador
-  { capa: 0, caracter: "f" }, // 66 Salida
-  { capa: -1, caracter: "" }  // 67 Relieve de la salida
+export type GameTypeEntity = [
+  string,
+  number,
+  number,
+  number,
+  number,
+  number,
+  number
 ];
 
-const tablaDark: string[] = [];
-const caracteresDark = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!?@";
-const framesDark: number[] = [];
+export type GameTypeLevel = GameTypeEntity[];
 
-for (let frame = 0; frame <= 36; frame++) {
-  framesDark.push(frame);
-}
-framesDark.push(42);
-framesDark.push(48);
-for (let frame = 54; frame <= 65; frame++) {
-  framesDark.push(frame);
-}
-for (let frame = 72; frame <= 83; frame++) {
-  framesDark.push(frame);
-}
-framesDark.push(90);
-framesDark.push(96);
+function agregarEntidad(
+  entidades: GameTypeLevel,
+  tipo: string,
+  x: number,
+  y: number,
+  direccion: number,
+  tile: number
+): GameTypeEntity {
+  const entidad: GameTypeEntity = [
+    tipo,
+    x,
+    y,
+    direccion,
+    -1,
+    0,
+    tile
+  ];
 
-for (let i = 0; i < framesDark.length; i++) {
-  tablaDark[framesDark[i]] = caracteresDark[i];
+  entidades.push(entidad);
+  return entidad;
 }
 
-const tablaPortales: string[] = [];
-tablaPortales[50] = "w";
-tablaPortales[51] = "s";
-tablaPortales[53] = "a";
-tablaPortales[55] = "d";
+function agregarTile(
+  entidades: GameTypeLevel,
+  tile: number,
+  x: number,
+  y: number
+): void {
+  switch (tile) {
+    case 3:
+      agregarEntidad(entidades, "mirror", x, y, 2, tile);
+      break;
+    case 4:
+      agregarEntidad(entidades, "mirror", x, y, 3, tile);
+      break;
+    case 5:
+      agregarEntidad(entidades, "mirror", x, y, 0, tile);
+      break;
+    case 6:
+      agregarEntidad(entidades, "mirror", x, y, 1, tile);
+      break;
 
-function crearCapa(filas: number, columnas: number): string[][] {
-  const capa: string[][] = [];
-  for (let y = 0; y < filas; y++) {
-    const fila: string[] = [];
-    for (let x = 0; x < columnas; x++) {
-      fila.push(".");
+    case 11:
+      agregarEntidad(entidades, "laserEmissor", x, y, 0, tile);
+      break;
+    case 12:
+      agregarEntidad(entidades, "laserEmissor", x, y, 2, tile);
+      break;
+    case 13:
+      agregarEntidad(entidades, "laserEmissor", x, y, 3, tile);
+      break;
+    case 14:
+      agregarEntidad(entidades, "laserEmissor", x, y, 1, tile);
+      break;
+
+    case 16:
+    case 17:
+    case 18:
+    case 19:
+    case 20:
+    case 21:
+    case 22:
+    case 23:
+    case 24:
+      agregarEntidad(entidades, "wall", x, y, -1, tile);
+      break;
+
+    case 27:
+      agregarEntidad(entidades, "laserReciever", x, y, 0, tile);
+      break;
+    case 28:
+      agregarEntidad(entidades, "laserReciever", x, y, 2, tile);
+      break;
+    case 29:
+      agregarEntidad(entidades, "laserReciever", x, y, 3, tile);
+      break;
+    case 30:
+      agregarEntidad(entidades, "laserReciever", x, y, 1, tile);
+      break;
+
+    case 33:
+    case 34:
+      agregarEntidad(entidades, "wall", x, y, 0, tile);
+      break;
+
+    case 37:
+      agregarEntidad(entidades, "box", x, y, 0, tile);
+      break;
+
+    case 39:
+    case 41:
+    case 43:
+    case 44:
+    case 45:
+    case 46:
+    case 47:
+    case 64:
+      agregarEntidad(entidades, "wall", x, y, 0, tile);
+      break;
+
+    case 66:
+      agregarEntidad(entidades, "player", x, y, 0, tile);
+      break;
+
+    case 68:
+      agregarEntidad(entidades, "wall", x, y, -1, tile);
+      break;
+  }
+}
+
+function direccionPortal(tile: number): number {
+  if (tile === 50) return 0;
+  if (tile === 55) return 1;
+  if (tile === 51) return 2;
+  if (tile === 53) return 3;
+  return -1;
+}
+
+function buscarEntidad(
+  entidades: GameTypeLevel,
+  x: number,
+  y: number
+): GameTypeEntity | undefined {
+  let placa: GameTypeEntity | undefined;
+
+  for (let i = 0; i < entidades.length; i++) {
+    const entidad = entidades[i];
+
+    if (entidad[1] !== x || entidad[2] !== y) {
+      continue;
     }
-    capa.push(fila);
+
+    if (entidad[0] !== "goal") {
+      return entidad;
+    }
+
+    placa = entidad;
   }
-  return capa;
+
+  return placa;
 }
 
-function capaATexto(capa: string[][]): string {
-  let texto = "";
-  for (let y = 0; y < capa.length; y++) {
-    texto += capa[y].join("");
-    if (y < capa.length - 1) {
-      texto += "\n";
+function buscarTipo(
+  entidades: GameTypeLevel,
+  x: number,
+  y: number,
+  tipo: string
+): GameTypeEntity | undefined {
+  for (let i = 0; i < entidades.length; i++) {
+    const entidad = entidades[i];
+
+    if (
+      entidad[0] === tipo &&
+      entidad[1] === x &&
+      entidad[2] === y
+    ) {
+      return entidad;
     }
   }
-  return texto;
+
+  return undefined;
 }
 
-function tienePlaca(tile: number): boolean {
-  return tile === 2 || (tile >= 1000 && tile < 2000);
-}
+function buscarPortal(
+  entidades: GameTypeLevel,
+  x: number,
+  y: number
+): GameTypeEntity | undefined {
+  for (let i = 0; i < entidades.length; i++) {
+    const entidad = entidades[i];
 
-function objetoDeTile(tile: number): number {
-  if (tile === 2) {
-    return 1;
-  }
-  if (tile >= 1000 && tile < 2000) {
-    return tile - 1000;
-  }
-  return tile;
-}
-
-function esEmisor(tile: number): boolean {
-  return tile >= 11 && tile <= 14;
-}
-
-function esLinkDeEmisor(nivel: NivelParseable, link: number[]): boolean {
-  if (link.length !== 4) {
-    return false;
+    if (
+      entidad[1] === x &&
+      entidad[2] === y &&
+      entidad[4] !== -1
+    ) {
+      return entidad;
+    }
   }
 
-  const x1 = link[0];
-  const y1 = link[1];
-  const x2 = link[2];
-  const y2 = link[3];
+  return undefined;
+}
 
+function nuevoGrupo(indice: number): number {
+  if (indice >= 30) {
+    throw new Error("El nivel tiene demasiados grupos.");
+  }
+
+  return 1 << indice;
+}
+
+function primerGrupo(grupos: number): number {
+  for (let i = 0; i < 30; i++) {
+    const grupo = 1 << i;
+
+    if ((grupos & grupo) !== 0) {
+      return grupo;
+    }
+  }
+
+  return 0;
+}
+
+function darkValido(frame: number): boolean {
+  if (frame >= 0 && frame <= 36) return true;
+  if (frame === 42) return true;
+  if (frame === 48) return true;
+  if (frame >= 54 && frame <= 65) return true;
+  if (frame >= 72 && frame <= 83) return true;
+  if (frame === 90) return true;
+  if (frame === 96) return true;
+  return false;
+}
+
+export function convertirNivel(
+  nivel: NivelParseable
+): GameTypeLevel {
+  const entidades: GameTypeLevel = [];
   const filas = nivel.tablero.length;
-  const columnas = nivel.tablero[0].length;
 
-  if (
-    x1 < 0 || y1 < 0 || x2 < 0 || y2 < 0 ||
-    x1 >= columnas || x2 >= columnas ||
-    y1 >= filas || y2 >= filas
-  ) {
-    return false;
-  }
-
-  return tienePlaca(nivel.tablero[y1][x1]) &&
-    esEmisor(objetoDeTile(nivel.tablero[y2][x2]));
-}
-
-function codigoControl(indice: number): string {
-  const letras = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  if (indice < letras.length) {
-    return letras[indice];
-  }
-  return String.fromCharCode(256 + indice - letras.length);
-}
-
-export function convertirNivel(nivel: NivelParseable): string {
-  const filas = nivel.tablero.length;
   if (filas === 0) {
-    return "";
+    return entidades;
   }
-  const columnas = nivel.tablero[0].length;
 
-  const estatica = crearCapa(filas, columnas);
-  const dinamica = crearCapa(filas, columnas);
-  const laser = crearCapa(filas, columnas);
-  const portales = crearCapa(filas, columnas);
-  const grupos = crearCapa(filas, columnas);
-  const oscuridad = crearCapa(filas, columnas);
-  const placasControl = crearCapa(filas, columnas);
-  const emisoresControl = crearCapa(filas, columnas);
+  const columnas = nivel.tablero[0].length;
 
   for (let y = 0; y < filas; y++) {
     for (let x = 0; x < columnas; x++) {
-      const tile = nivel.tablero[y][x];
-      if (tienePlaca(tile)) {
-        estatica[y][x] = "X";
-      }
-      const objeto = objetoDeTile(tile);
-      const conversion = tablaTiles[objeto];
-      if (conversion === undefined || conversion.caracter === "") {
+      let tile = nivel.tablero[y][x];
+
+      if (tile === 2) {
+        agregarEntidad(
+          entidades,
+          "goal",
+          x,
+          y,
+          -1,
+          2
+        );
         continue;
       }
-      if (conversion.capa === 0) {
-        estatica[y][x] = conversion.caracter;
-      } else if (conversion.capa === 1) {
-        dinamica[y][x] = conversion.caracter;
-      } else if (conversion.capa === 2) {
-        laser[y][x] = conversion.caracter;
+
+      if (tile >= 1000 && tile < 2000) {
+        agregarEntidad(
+          entidades,
+          "goal",
+          x,
+          y,
+          -1,
+          2
+        );
+
+        tile -= 1000;
       }
+
+      agregarTile(
+        entidades,
+        tile,
+        x,
+        y
+      );
     }
   }
 
   if (nivel.portales !== undefined) {
     for (let y = 0; y < filas; y++) {
       for (let x = 0; x < columnas; x++) {
-        const portal = nivel.portales[y][x];
-        if (tablaPortales[portal] !== undefined) {
-          portales[y][x] = tablaPortales[portal];
+        const direccion = direccionPortal(
+          nivel.portales[y][x]
+        );
+
+        if (direccion === -1) {
+          continue;
         }
+
+        let entidad = buscarEntidad(
+          entidades,
+          x,
+          y
+        );
+
+        if (entidad === undefined) {
+          entidad = agregarEntidad(
+            entidades,
+            "box",
+            x,
+            y,
+            0,
+            1
+          );
+        }
+
+        entidad[4] = direccion;
       }
     }
   }
 
-  if (nivel.links !== undefined && nivel.portales !== undefined) {
-    let numeroGrupo = 0;
-
-    for (let i = 0; i < nivel.links.length; i++) {
-      const link: number[] = nivel.links[i];
-      if (link.length !== 4 || esLinkDeEmisor(nivel, link)) {
-        continue;
-      }
-      const x1 = link[0];
-      const y1 = link[1];
-      const x2 = link[2];
-      const y2 = link[3];
-      if (
-        x1 < 0 || x2 < 0 || y1 < 0 || y2 < 0 ||
-        x1 >= columnas || x2 >= columnas ||
-        y1 >= filas || y2 >= filas
-      ) {
-        continue;
-      }
-      if (
-        tablaPortales[nivel.portales[y1][x1]] !== undefined &&
-        tablaPortales[nivel.portales[y2][x2]] !== undefined
-      ) {
-        numeroGrupo++;
-        const numero = String(numeroGrupo);
-        grupos[y1][x1] = numero;
-        grupos[y2][x2] = numero;
-      }
-    }
-
-    for (let i = 0; i < nivel.links.length; i++) {
-      const link: number[] = nivel.links[i];
-      if (link.length !== 4 || esLinkDeEmisor(nivel, link)) {
-        continue;
-      }
-      const x1 = link[0];
-      const y1 = link[1];
-      const x2 = link[2];
-      const y2 = link[3];
-      if (
-        x1 < 0 || x2 < 0 || y1 < 0 || y2 < 0 ||
-        x1 >= columnas || x2 >= columnas ||
-        y1 >= filas || y2 >= filas
-      ) {
-        continue;
-      }
-      if (
-        tienePlaca(nivel.tablero[y1][x1]) &&
-        tablaPortales[nivel.portales[y2][x2]] !== undefined &&
-        grupos[y2][x2] !== "."
-      ) {
-        grupos[y1][x1] = grupos[y2][x2];
-      }
-      if (
-        tienePlaca(nivel.tablero[y2][x2]) &&
-        tablaPortales[nivel.portales[y1][x1]] !== undefined &&
-        grupos[y1][x1] !== "."
-      ) {
-        grupos[y2][x2] = grupos[y1][x1];
-      }
-    }
-  }
+  let numeroGrupo = 0;
 
   if (nivel.links !== undefined) {
-    const destinos: number[][] = [];
-    const codigos: string[] = [];
-
     for (let i = 0; i < nivel.links.length; i++) {
-      const link: number[] = nivel.links[i];
-      if (!esLinkDeEmisor(nivel, link)) {
+      const link = nivel.links[i];
+
+      if (link.length !== 4) {
         continue;
       }
-      const placaX = link[0];
-      const placaY = link[1];
-      const emisorX = link[2];
-      const emisorY = link[3];
+
+      const portal1 = buscarPortal(
+        entidades,
+        link[0],
+        link[1]
+      );
+
+      const portal2 = buscarPortal(
+        entidades,
+        link[2],
+        link[3]
+      );
+
       if (
-        placaX < 0 || emisorX < 0 || placaY < 0 || emisorY < 0 ||
-        placaX >= columnas || emisorX >= columnas ||
-        placaY >= filas || emisorY >= filas ||
-        !tienePlaca(nivel.tablero[placaY][placaX]) ||
-        !esEmisor(objetoDeTile(nivel.tablero[emisorY][emisorX]))
+        portal1 === undefined ||
+        portal2 === undefined
       ) {
         continue;
       }
 
-      let codigo = "";
-      for (let j = 0; j < destinos.length; j++) {
-        if (destinos[j][0] === emisorX && destinos[j][1] === emisorY) {
-          codigo = codigos[j];
-          break;
-        }
+      const grupo = nuevoGrupo(numeroGrupo);
+      numeroGrupo++;
+
+      portal1[5] |= grupo;
+      portal2[5] |= grupo;
+    }
+
+    for (let i = 0; i < nivel.links.length; i++) {
+      const link = nivel.links[i];
+
+      if (link.length !== 4) {
+        continue;
       }
-      if (codigo === "") {
-        codigo = codigoControl(destinos.length);
-        destinos.push([emisorX, emisorY]);
-        codigos.push(codigo);
+
+      let placa = buscarTipo(
+        entidades,
+        link[0],
+        link[1],
+        "goal"
+      );
+
+      let destinoX = link[2];
+      let destinoY = link[3];
+
+      if (placa === undefined) {
+        placa = buscarTipo(
+          entidades,
+          link[2],
+          link[3],
+          "goal"
+        );
+
+        destinoX = link[0];
+        destinoY = link[1];
       }
-      placasControl[placaY][placaX] = codigo;
-      emisoresControl[emisorY][emisorX] = codigo;
+
+      if (placa === undefined) {
+        continue;
+      }
+
+      const destino = buscarEntidad(
+        entidades,
+        destinoX,
+        destinoY
+      );
+
+      if (
+        destino === undefined ||
+        destino === placa
+      ) {
+        continue;
+      }
+
+      let grupo = primerGrupo(destino[5]);
+
+      if (grupo === 0) {
+        grupo = nuevoGrupo(numeroGrupo);
+        numeroGrupo++;
+        destino[5] |= grupo;
+      }
+
+      placa[5] |= grupo;
     }
   }
 
@@ -363,21 +413,25 @@ export function convertirNivel(nivel: NivelParseable): string {
       if (nivel.darkLayer[y] === undefined) {
         continue;
       }
+
       for (let x = 0; x < columnas; x++) {
         const frame = nivel.darkLayer[y][x];
-        if (tablaDark[frame] !== undefined) {
-          oscuridad[y][x] = tablaDark[frame];
+
+        if (!darkValido(frame)) {
+          continue;
         }
+
+        agregarEntidad(
+          entidades,
+          "dark",
+          x,
+          y,
+          -1,
+          frame
+        );
       }
     }
   }
 
-  return capaATexto(estatica) +
-    "\n^\n" + capaATexto(dinamica) +
-    "\n^\n" + capaATexto(laser) +
-    "\n^\n" + capaATexto(portales) +
-    "\n^\n" + capaATexto(grupos) +
-    "\n^\n" + capaATexto(oscuridad) +
-    "\n^\n" + capaATexto(placasControl) +
-    "\n^\n" + capaATexto(emisoresControl);
+  return entidades;
 }
