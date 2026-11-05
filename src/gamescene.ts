@@ -6,6 +6,7 @@ import { cargarPortales, crearAnimacionesPortales, configurarPortal, esParedExte
 
 import { obtenerNivel, crearBoton } from "./niveles";
 import { convertirNivel } from "./parser";
+import type { GameTypeEntity, GameTypeLevel } from "./parser";
 
 import { demo, completarNivelInvitado } from "./datosDemo";
 import {
@@ -26,8 +27,7 @@ interface Entity {
     dir?: number;
     emitting?: number;
     portal?: number;
-    group?: number;
-    controlGroup?: string;
+    groups?: number;
     pushable: boolean;
     secret?: string;
     laserPhase?: number;
@@ -360,7 +360,7 @@ export class GameScene extends Phaser.Scene {
         this.saliendoDelNivel = false;
         this.testeando = false;
         this.modoTest = false;
-        this.nivelTest = "";
+        this.nivelTest = [];
         this.nivelId = "";
         this.levelNumber = 1;
         this.nombreNivelOficial = "";
@@ -393,7 +393,7 @@ export class GameScene extends Phaser.Scene {
         }
         if (data.modoTest === true) {
             this.modoTest = true;
-            if (typeof data.nivelTest === "string") {
+            if (Array.isArray(data.nivelTest)) {
                 this.nivelTest = data.nivelTest;
             }
             return;
@@ -475,7 +475,8 @@ export class GameScene extends Phaser.Scene {
     private altoBarra = 68;
     private altoAvisos = 92;
     private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
-    private staticRows: any;
+    private filasNivel = 0;
+    private columnasNivel = 0;
     private nivelDescargado: any = null;
     private saliendoDelNivel = false;
     private finishinglevel: any;
@@ -485,7 +486,7 @@ export class GameScene extends Phaser.Scene {
 
     private escenaAnterior = "menu";
     private modoTest = false;
-    private nivelTest = "";
+    private nivelTest: GameTypeLevel = [];
     private nivelId = "";
     private testeando = false;
 
@@ -1542,7 +1543,12 @@ export class GameScene extends Phaser.Scene {
         return false;
     }
     private isWall(x: number, y: number): boolean {
-        if (y < 0 || y >= this.staticRows.length || x < 0 || x >= this.staticRows[y].length) {
+        if (
+            y < 0 ||
+            y >= this.filasNivel ||
+            x < 0 ||
+            x >= this.columnasNivel
+        ) {
             return true;
         }
         if (this.entities.find(entity => entity.type === "wall" && entity.x === x && entity.y === y)) {
@@ -1560,26 +1566,60 @@ export class GameScene extends Phaser.Scene {
     private getMirrorAt(x: number, y: number): Entity | undefined {
         return this.entities.find(entity => entity.x === x && entity.y === y && entity.type === "mirror");
     }
-    private findPair(group: number | undefined, exclude: Entity | undefined): Entity | undefined {
-        return (this.entities.find(entity => entity.portal !== undefined && entity.group === group && entity !== exclude && this.isPortalActive(entity)));
+
+    private grupoVisualPortal(portal: Entity): number {
+        const grupos = portal.groups || 0;
+
+        for (let i = 0; i < 30; i++) {
+            if ((grupos & (1 << i)) !== 0) {
+                return i + 1;
+            }
+        }
+
+        return 0;
+    }
+
+    private findPair(portal: Entity): Entity | undefined {
+        const grupos = portal.groups || 0;
+
+        if (grupos === 0) {
+            return undefined;
+        }
+
+        return this.entities.find(entity =>
+            entity.portal !== undefined &&
+            entity !== portal &&
+            ((entity.groups || 0) & grupos) !== 0 &&
+            this.isPortalActive(entity)
+        );
     }
 
     //PORTAL WITH PRESSURE PLATES
 
     private isPortalActive(portal: Entity): boolean {
+        const grupos = portal.groups || 0;
+
+        if (grupos === 0) {
+            return true;
+        }
+
         let hasPlate = false;
+
         for (let i = 0; i < this.entities.length; i++) {
             const plate = this.entities[i];
-            if (plate.type === "goal" && plate.group !== undefined && plate.group === portal.group) {
+
+            if (
+                plate.type === "goal" &&
+                ((plate.groups || 0) & grupos) !== 0
+            ) {
                 hasPlate = true;
-                for (let j = 0; j < this.entities.length; j++) {
-                    const entity = this.entities[j];
-                    if ((entity.type === "player" || entity.pushable === true) && entity.x === plate.x && entity.y === plate.y) {
-                        return true;
-                    }
+
+                if (this.isPlatePressed(plate)) {
+                    return true;
                 }
             }
         }
+
         return hasPlate === false;
     }
 
@@ -1595,18 +1635,30 @@ export class GameScene extends Phaser.Scene {
     }
 
     private isEmitterActive(emitter: Entity): boolean {
-        if (emitter.controlGroup === undefined) {
+        const grupos = emitter.groups || 0;
+
+        if (grupos === 0) {
             return true;
         }
+
+        let hasPlate = false;
+
         for (let i = 0; i < this.entities.length; i++) {
             const plate = this.entities[i];
-            if (plate.type === "goal" &&
-                plate.controlGroup === emitter.controlGroup &&
-                this.isPlatePressed(plate)) {
-                return true;
+
+            if (
+                plate.type === "goal" &&
+                ((plate.groups || 0) & grupos) !== 0
+            ) {
+                hasPlate = true;
+
+                if (this.isPlatePressed(plate)) {
+                    return true;
+                }
             }
         }
-        return false;
+
+        return hasPlate === false;
     }
 
     private getPortalAt(x: number, y: number, dir?: number): Entity | undefined {
@@ -1733,8 +1785,7 @@ export class GameScene extends Phaser.Scene {
             entity.sprite2 = this.add.sprite(entity.sprite.x, entity.sprite.y, "portal-normal-green", 0);
         }
 
-        let grupo = 0;
-        if (entity.group !== undefined) grupo = entity.group;
+        const grupo = this.grupoVisualPortal(entity);
         configurarPortal(entity.sprite2, grupo, entity.portal, normal);
         entity.sprite2.setAlpha(entity.sprite.alpha * this.obtenerAlphaPortal(entity));
         entity.sprite2.setScale(this.pixelmultiplier);
@@ -2086,7 +2137,7 @@ export class GameScene extends Phaser.Scene {
                     });
                 }
             } else if (target && portal) {
-                const exit = this.findPair(target.group, target);
+                const exit = this.findPair(target);
                 if (exit && exit.portal !== undefined) {
                     queue.push({
                         source: exit,
@@ -2486,11 +2537,7 @@ export class GameScene extends Phaser.Scene {
                 portal.emitting = undefined;
 
                 if (portal.sprite2 && portal.portal !== undefined) {
-                    let grupo = 0;
-
-                    if (portal.group !== undefined) {
-                        grupo = portal.group;
-                    }
+                    const grupo = this.grupoVisualPortal(portal);
 
                     const normal =
                         portal.type === "wall" &&
@@ -3886,6 +3933,329 @@ export class GameScene extends Phaser.Scene {
         }
     }
 
+    private crearEntidadNivel(datos: GameTypeEntity): void {
+        const tipo = datos[0];
+        const x = datos[1];
+        const y = datos[2];
+        const dir = datos[3];
+        const portal = datos[4];
+        const groups = datos[5];
+        const tile = datos[6];
+
+        if (tipo === "dark") {
+            this.add.sprite(
+                this.offsetX + x * this.tilesize,
+                this.offsetY + y * this.tilesize,
+                "dark",
+                tile
+            ).setOrigin(1, 1)
+                .setScale(this.pixelmultiplier)
+                .setDepth(90);
+            return;
+        }
+
+        let sprite: Phaser.GameObjects.Sprite | undefined;
+        let shadow: Phaser.GameObjects.Sprite | undefined;
+        let pushable = false;
+        let emitting: number | undefined;
+        let secret: string | undefined;
+
+        const spriteX = this.offsetX + x * this.tilesize;
+        const spriteY = this.offsetY + y * this.tilesize;
+
+        switch (tile) {
+            case 1: {
+                let frame = 0;
+                if (portal === 1) frame = 3;
+
+                sprite = this.add.sprite(
+                    spriteX,
+                    spriteY,
+                    "spritestall",
+                    frame
+                ).setOrigin(1, 1)
+                    .setScale(this.pixelmultiplier)
+                    .setDepth(2 * y);
+
+                pushable = true;
+                emitting = 4;
+                break;
+            }
+
+            case 2:
+                sprite = this.add.sprite(
+                    spriteX,
+                    spriteY,
+                    "tileset-fogo",
+                    1
+                ).setOrigin(1, 1)
+                    .setScale(this.pixelmultiplier)
+                    .setDepth(-0.5);
+                break;
+
+            case 3:
+            case 4:
+            case 5:
+            case 6:
+                sprite = this.add.sprite(
+                    spriteX,
+                    spriteY,
+                    "tileset-fogo",
+                    tile - 1
+                ).setOrigin(1, 1)
+                    .setScale(this.pixelmultiplier)
+                    .setDepth(2 * y);
+                pushable = true;
+                break;
+
+            case 11:
+            case 12:
+            case 13:
+            case 14:
+                sprite = this.add.sprite(
+                    spriteX,
+                    spriteY,
+                    "tileset-fogo",
+                    tile - 1
+                ).setOrigin(1, 1)
+                    .setScale(this.pixelmultiplier)
+                    .setDepth(2 * y);
+                pushable = true;
+                emitting = dir;
+                break;
+
+            case 16:
+            case 17:
+            case 18:
+            case 19:
+            case 20:
+            case 21:
+            case 22:
+            case 23:
+            case 24: {
+                let profundidad = 1.1;
+                if (tile >= 21) profundidad = -0.5;
+
+                sprite = this.add.sprite(
+                    spriteX,
+                    spriteY,
+                    "tileset-fogo",
+                    tile - 1
+                ).setOrigin(1, 1)
+                    .setScale(this.pixelmultiplier)
+                    .setDepth(profundidad);
+                break;
+            }
+
+            case 27:
+            case 28:
+            case 29:
+            case 30:
+                sprite = this.add.sprite(
+                    spriteX,
+                    spriteY,
+                    "tileset-fogo",
+                    tile - 21
+                ).setOrigin(1, 1)
+                    .setScale(this.pixelmultiplier)
+                    .setDepth(2 * y);
+                pushable = true;
+                break;
+
+            case 33:
+                sprite = this.add.sprite(
+                    spriteX,
+                    spriteY,
+                    "spritestall",
+                    4
+                ).setOrigin(1, 1)
+                    .setScale(this.pixelmultiplier)
+                    .setDepth(2 * y);
+
+                shadow = this.add.sprite(
+                    spriteX - this.tilesize,
+                    spriteY - this.tilesize,
+                    "sewingshadow",
+                    0
+                ).setOrigin(0, 0)
+                    .setScale(this.pixelmultiplier)
+                    .setDepth(1);
+                break;
+
+            case 34:
+                sprite = this.add.sprite(
+                    spriteX,
+                    spriteY,
+                    "spritestall",
+                    5
+                ).setOrigin(1, 1)
+                    .setScale(this.pixelmultiplier)
+                    .setDepth(2 * y);
+                break;
+
+            case 37:
+                sprite = this.add.sprite(
+                    spriteX,
+                    spriteY,
+                    "spritestall",
+                    0
+                ).setOrigin(1, 1)
+                    .setScale(this.pixelmultiplier)
+                    .setDepth(2 * y);
+
+                shadow = this.add.sprite(
+                    spriteX - this.tilesize,
+                    spriteY - this.tilesize,
+                    "boxshadow",
+                    0
+                ).setOrigin(0, 0)
+                    .setScale(this.pixelmultiplier)
+                    .setDepth(1);
+
+                pushable = true;
+                break;
+
+            case 39:
+                sprite = this.add.sprite(
+                    spriteX,
+                    spriteY,
+                    "spritestall",
+                    1
+                ).setOrigin(1, 1)
+                    .setScale(this.pixelmultiplier)
+                    .setDepth(2 * y);
+
+                shadow = this.add.sprite(
+                    spriteX - this.tilesize,
+                    spriteY - this.tilesize,
+                    "wallshadow",
+                    0
+                ).setOrigin(0, 0)
+                    .setScale(this.pixelmultiplier)
+                    .setDepth(1);
+                break;
+
+            case 41:
+                sprite = this.add.sprite(
+                    spriteX,
+                    spriteY,
+                    "spritestall",
+                    2
+                ).setOrigin(1, 1)
+                    .setScale(this.pixelmultiplier)
+                    .setDepth(2 * y);
+
+                shadow = this.add.sprite(
+                    spriteX - this.tilesize,
+                    spriteY - this.tilesize,
+                    "boxshadow",
+                    0
+                ).setOrigin(0, 0)
+                    .setScale(this.pixelmultiplier)
+                    .setDepth(1);
+                break;
+
+            case 43:
+            case 44:
+            case 45:
+            case 47:
+                sprite = this.add.sprite(
+                    spriteX,
+                    spriteY,
+                    "spritestall",
+                    tile - 37
+                ).setOrigin(1, 1)
+                    .setScale(this.pixelmultiplier)
+                    .setDepth(2 * y);
+                break;
+
+            case 46:
+                sprite = this.add.sprite(
+                    spriteX,
+                    spriteY,
+                    "spritestall",
+                    9
+                ).setOrigin(1, 1)
+                    .setScale(this.pixelmultiplier)
+                    .setDepth(2 * y);
+
+                shadow = this.add.sprite(
+                    spriteX - this.tilesize,
+                    spriteY - this.tilesize,
+                    "printershadow",
+                    0
+                ).setOrigin(0, 0)
+                    .setScale(this.pixelmultiplier)
+                    .setDepth(1);
+                break;
+
+            case 64:
+                sprite = this.add.sprite(
+                    spriteX,
+                    spriteY,
+                    "spritestall",
+                    3
+                ).setOrigin(1, 1)
+                    .setScale(this.pixelmultiplier)
+                    .setDepth(2 * y);
+
+                shadow = this.add.sprite(
+                    spriteX - this.tilesize,
+                    spriteY - this.tilesize,
+                    "wallshadow2",
+                    0
+                ).setOrigin(0, 0)
+                    .setScale(this.pixelmultiplier)
+                    .setDepth(1);
+                break;
+
+            case 66:
+                sprite = this.add.sprite(
+                    spriteX,
+                    spriteY,
+                    "lindsey",
+                    0
+                ).setOrigin(1, 1.04)
+                    .setScale(this.pixelmultiplier)
+                    .setDepth(2 * y);
+                break;
+
+            case 68:
+                sprite = this.add.sprite(
+                    spriteX,
+                    spriteY,
+                    "door",
+                    0
+                ).setOrigin(1, 1)
+                    .setScale(this.pixelmultiplier)
+                    .setDepth(2 * y);
+
+                secret = "flag";
+                break;
+        }
+
+        if (sprite === undefined) {
+            return;
+        }
+
+        const entity: Entity = {
+            type: tipo,
+            x: x,
+            y: y,
+            groups: groups,
+            pushable: pushable,
+            sprite: sprite
+        };
+
+        if (dir !== -1) entity.dir = dir;
+        if (portal !== -1) entity.portal = portal;
+        if (emitting !== undefined) entity.emitting = emitting;
+        if (secret !== undefined) entity.secret = secret;
+        if (shadow !== undefined) entity.shadow = shadow;
+
+        this.entities.push(entity);
+    }
+
     constructor() {
         super("game");
     }
@@ -4714,7 +5084,7 @@ export class GameScene extends Phaser.Scene {
         //MORE TEST STUFF
 
         this.community = true;
-        let level = "";
+        let level: GameTypeLevel = [];
         if (this.modoTest) {
             level = this.nivelTest;
         } else if (this.nivelDescargado !== null) {
@@ -4762,21 +5132,31 @@ export class GameScene extends Phaser.Scene {
             }
         }
 
-        const [staticLayer, dynamicLayer, laserLayer, portalLayer, directionLayer, darkLayer, plateControlLayer, emitterControlLayer] = level.split("^");
-        this.staticRows = staticLayer.trim().split("\n");
-        const dynamicRows = dynamicLayer.trim().split("\n");
-        const laserRows = laserLayer.trim().split("\n");
-        const portalRows = portalLayer.trim().split("\n");
-        const directionRows = directionLayer.trim().split("\n");
-        const darkRows = darkLayer.trim().split("\n");
-        const plateControlRows = plateControlLayer ? plateControlLayer.trim().split("\n") : [];
-        const emitterControlRows = emitterControlLayer ? emitterControlLayer.trim().split("\n") : [];
-        
+        let columnas = 0;
+        let filas = 0;
+
+        for (let i = 0; i < level.length; i++) {
+            const datos = level[i];
+
+            if (datos[1] + 1 > columnas) {
+                columnas = datos[1] + 1;
+            }
+
+            if (datos[2] + 1 > filas) {
+                filas = datos[2] + 1;
+            }
+        }
+
+        if (columnas === 0 || filas === 0) {
+            return;
+        }
+
+        this.columnasNivel = columnas;
+        this.filasNivel = filas;
+
         //CALCULO DE MEDIDAS
 
         const margen = 12;
-        const columnas = this.staticRows[0].length;
-        const filas = this.staticRows.length;
         const anchoDisponible = this.scale.width - margen * 2;
         const altoDisponible = this.scale.height - this.altoBarra - margen * 2;
         const extraSuperior = 8;
@@ -4788,662 +5168,21 @@ export class GameScene extends Phaser.Scene {
         this.offsetX = (this.scale.width - anchoTablero) / 2 + this.tilesize;
         this.offsetY = this.altoBarra + margen + (altoDisponible - altoTablero - extra) / 2 + extra + this.tilesize;
 
-        for (let y = 0; y<this.staticRows.length; y++) {
-            for (let x = 0; x<this.staticRows[y].length; x++){
-                this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "tileset-fogo", 14).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(-1);
-                const thistile = this.staticRows[y][x];
-                switch(thistile) {
-                    case "#":
-                        if (y > 0) {
-                        if (this.staticRows[y-1][x] === "#") {
-                            this.entities.push ({
-                            type: "wall",
-                            x: x,
-                            y: y,
-                            pushable: false,
-                            sprite: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "spritestall", 3).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(2*y),
-                            shadow: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier - 16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier - 16*this.pixelmultiplier, "wallshadow2",0).setOrigin(0,0).setScale(this.pixelmultiplier).setDepth(1)
-                            });
-                            break;
-                        }
-                        else {
-                            this.entities.push ({
-                            type: "wall",
-                            x: x,
-                            y: y,
-                            pushable: false,
-                            sprite: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "spritestall", 1).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(2*y),
-                            shadow: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier - 16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier - 16*this.pixelmultiplier, "wallshadow",0).setOrigin(0,0).setScale(this.pixelmultiplier).setDepth(1)
-                            });
-                            break;
-                        }
-                        }else {
-                            this.entities.push ({
-                            type: "wall",
-                            x: x,
-                            y: y,
-                            pushable: false,
-                            sprite: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "spritestall", 1).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(2*y),
-                            shadow: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier - 16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier - 16*this.pixelmultiplier, "wallshadow",0).setOrigin(0,0).setScale(this.pixelmultiplier).setDepth(1)
-                            });
-                            break;
-                        }
-                    case "1":
-                        this.entities.push ({
-                        type: "wall",
-                        x: x,
-                        y: y,
-                        pushable: false,
-                        sprite: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "tileset-fogo", 16).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(1.1)
-                        });
-                        break;
-                    case "2":
-                        this.entities.push ({
-                        type: "wall",
-                        x: x,
-                        y: y,
-                        pushable: false,
-                        sprite: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "tileset-fogo", 17).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(1.1)
-                        });
-                        break;
-                    case "3":
-                        this.entities.push ({
-                        type: "wall",
-                        x: x,
-                        y: y,
-                        pushable: false,
-                        sprite: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "tileset-fogo", 18).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(1.1)
-                        });
-                        break;
-                    case "4":
-                        this.entities.push ({
-                        type: "wall",
-                        x: x,
-                        y: y,
-                        pushable: false,
-                        sprite: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "tileset-fogo", 19).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(1.1)
-                        });
-                        break;
-                    case "5":
-                        this.entities.push ({
-                        type: "wall",
-                        x: x,
-                        y: y,
-                        pushable: false,
-                        sprite: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "tileset-fogo", 20).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(-0.5)
-                        });
-                        break;
-                    case "6":
-                        this.entities.push ({
-                        type: "wall",
-                        x: x,
-                        y: y,
-                        pushable: false,
-                        sprite: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "tileset-fogo", 21).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(-0.5)
-                        });
-                        break;
-                    case "7":
-                        this.entities.push ({
-                        type: "wall",
-                        x: x,
-                        y: y,
-                        pushable: false,
-                        sprite: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "tileset-fogo", 22).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(-0.5)
-                        });
-                        break;
-                    case "8":
-                        this.entities.push ({
-                        type: "wall",
-                        x: x,
-                        y: y,
-                        pushable: false,
-                        sprite: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "tileset-fogo", 23).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(-0.5)
-                        });
-                        break;
-                    case "0": 
-                        this.entities.push ({
-                        type: "wall",
-                        x: x,
-                        y: y,
-                        pushable: false,
-                        sprite: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "tileset-fogo", 15).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(1.1)
-                        });
-                        break;
-                    case "X":
-                        this.entities.push ({
-                        type: "goal",
-                        x: x,
-                        y: y,
-                        pushable: false,
-                        sprite: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "tileset-fogo", 1).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(-0.5)
-                        });
-                        break;
-                    case "f":
-                        this.entities.push ({
-                        type: "wall",
-                        x: x,
-                        y: y,
-                        pushable: false,
-                        secret: "flag",
-                        sprite: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "door", 0).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(2*y)
-                        });
-                        break;
-                }
-            }
-        }
-        for (let y = 0; y<dynamicRows.length; y++) {
-            for (let x = 0; x<dynamicRows[y].length; x++){
-                const thistile = dynamicRows[y][x];
-                switch(thistile) {
-                    case "p":
-                        this.entities.push ({
-                        type: "player",
-                        x: x,
-                        y: y,
-                        dir: 0,
-                        pushable: false,
-                        sprite: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "lindsey", 0).setOrigin(1,1.04).setScale(this.pixelmultiplier).setDepth(2*y)
-                        });
-                        break;
-                    case "b":
-                        this.entities.push ({
-                        type: "box",
-                        x: x,
-                        y: y,
-                        dir: 0,
-                        pushable: true,
-                        sprite: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "spritestall", 0).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(2*y),
-                        shadow: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier - 16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier - 16*this.pixelmultiplier, "boxshadow",0).setOrigin(0,0).setScale(this.pixelmultiplier).setDepth(1)
-                        });
-                        break;
-                    case "q":
-                        this.entities.push ({
-                        type: "wall",
-                        x: x,
-                        y: y,
-                        dir: 0,
-                        pushable: false,
-                        sprite: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "spritestall", 9).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(2*y),
-                        shadow: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier - 16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier - 16*this.pixelmultiplier, "printershadow",0).setOrigin(0,0).setScale(this.pixelmultiplier).setDepth(1)
-                        });
-                        break;
-                    case "w":
-                        this.entities.push ({
-                        type: "wall",
-                        x: x,
-                        y: y,
-                        dir: 0,
-                        pushable: false,
-                        sprite: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "spritestall", 10).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(2*y)
-                        });
-                        break;
-                    case "a":
-                        this.entities.push ({
-                        type: "wall",
-                        x: x,
-                        y: y,
-                        dir: 0,
-                        pushable: false,
-                        sprite: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "spritestall", 7).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(2*y)
-                        });
-                        break;
-                    case "s":
-                        this.entities.push ({
-                        type: "wall",
-                        x: x,
-                        y: y,
-                        dir: 0,
-                        pushable: false,
-                        sprite: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "spritestall", 8).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(2*y)
-                        });
-                        break;
-                    case "x":
-                        this.entities.push ({
-                        type: "wall",
-                        x: x,
-                        y: y,
-                        dir: 0,
-                        pushable: false,
-                        sprite: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "spritestall", 6).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(2*y)
-                        });
-                        break;
-                    case "z":
-                        this.entities.push ({
-                        type: "wall",
-                        x: x,
-                        y: y,
-                        dir: 0,
-                        pushable: false,
-                        sprite: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "spritestall", 2).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(2*y),
-                        shadow: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier - 16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier - 16*this.pixelmultiplier, "boxshadow",0).setOrigin(0,0).setScale(this.pixelmultiplier).setDepth(1)
-                        });
-                        break;
-                    case "c":
-                        this.entities.push ({
-                        type: "wall",
-                        x: x,
-                        y: y,
-                        dir: 0,
-                        pushable: false,
-                        sprite: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "spritestall", 4).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(2*y),
-                        shadow: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier - 16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier - 16*this.pixelmultiplier, "sewingshadow",0).setOrigin(0,0).setScale(this.pixelmultiplier).setDepth(1)
-                        });
-                        break;
-                    case "v":
-                        this.entities.push ({
-                        type: "wall",
-                        x: x,
-                        y: y,
-                        dir: 0,
-                        pushable: false,
-                        sprite: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "spritestall", 5).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(2*y)
-                        });
-                        break;
-                }
-            }
-        }
-        for (let y = 0; y<laserRows.length; y++) {
-            for (let x = 0; x<laserRows[y].length; x++){
-                const thistile = laserRows[y][x];
-                switch(thistile) {
-                    case "w":
-                        this.entities.push ({
-                        type: "laserEmissor",
-                        x: x,
-                        y: y,
-                        dir: 0,
-                        emitting: 0,
-                        pushable: true,
-                        sprite: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "tileset-fogo", 10).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(2*y)
-                        });
-                        break;
-                    case "a":
-                        this.entities.push ({
-                        type: "laserEmissor",
-                        x: x,
-                        y: y,
-                        dir: 3,
-                        emitting: 3,
-                        pushable: true,
-                        sprite: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "tileset-fogo", 12).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(2*y)
-                        });
-                        break;
-                    case "s":
-                        this.entities.push ({
-                        type: "laserEmissor",
-                        x: x,
-                        y: y,
-                        dir: 2,
-                        emitting: 2,
-                        pushable: true,
-                        sprite: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "tileset-fogo", 11).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(2*y)
-                        });
-                        break;
-                    case "d":
-                        this.entities.push ({
-                        type: "laserEmissor",
-                        x: x,
-                        y: y,
-                        dir: 1,
-                        emitting: 1,
-                        pushable: true,
-                        sprite: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "tileset-fogo", 13).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(2*y)
-                        });
-                        break;
-                    case "i":
-                        this.entities.push ({
-                        type: "laserReciever",
-                        x: x,
-                        y: y,
-                        dir: 0,
-                        pushable: true,
-                        sprite: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "tileset-fogo", 6).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(2*y)
-                        });
-                        break;
-                    case "j":
-                        this.entities.push ({
-                        type: "laserReciever",
-                        x: x,
-                        y: y,
-                        dir: 3,
-                        pushable: true,
-                        sprite: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "tileset-fogo", 8).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(2*y)
-                        });
-                        break;
-                    case "k":
-                        this.entities.push ({
-                        type: "laserReciever",
-                        x: x,
-                        y: y,
-                        dir: 2,
-                        pushable: true,
-                        sprite: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "tileset-fogo", 7).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(2*y)
-                        });
-                        break;
-                    case "l":
-                        this.entities.push ({
-                        type: "laserReciever",
-                        x: x,
-                        y: y,
-                        dir: 1,
-                        pushable: true,
-                        sprite: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "tileset-fogo", 9).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(2*y)
-                        });
-                        break;
-                    case "t":
-                        this.entities.push ({
-                        type: "mirror",
-                        x: x,
-                        y: y,
-                        dir: 0,
-                        pushable: true,
-                        sprite: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "tileset-fogo", 4).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(2*y)
-                        });
-                        break;
-                    case "f":
-                        this.entities.push ({
-                        type: "mirror",
-                        x: x,
-                        y: y,
-                        dir: 3,
-                        pushable: true,
-                        sprite: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "tileset-fogo", 3).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(2*y)
-                        });
-                        break;
-                    case "g":
-                        this.entities.push ({
-                        type: "mirror",
-                        x: x,
-                        y: y,
-                        dir: 2,
-                        pushable: true,
-                        sprite: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "tileset-fogo", 2).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(2*y)
-                        });
-                        break;
-                    case "h":
-                        this.entities.push ({
-                        type: "mirror",
-                        x: x,
-                        y: y,
-                        dir: 1,
-                        pushable: true,
-                        sprite: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "tileset-fogo", 5).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(2*y)
-                        });
-                        break;
-                }
-            }
-        }
-        for (let y = 0; y<portalRows.length; y++) {
-            for (let x = 0; x<portalRows[y].length; x++) {
-                let direccion = -1;
-                switch (portalRows[y][x]) {
-                    case "w": direccion = 0; break;
-                    case "d": direccion = 1; break;
-                    case "s": direccion = 2; break;
-                    case "a": direccion = 3; break;
-                }
-                if (direccion === -1) continue;
-
-                let entity = this.getAnythingAt(x, y);
-                if (!entity) {
-                    let frame = 0;
-                    if (direccion === 1) frame = 3;
-                    entity = {
-                        type: "box",
-                        x: x,
-                        y: y,
-                        dir: 0,
-                        emitting: 4,
-                        group: 0,
-                        pushable: true,
-                        sprite: this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "spritestall", frame).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(2*y)
-                    };
-                    this.entities.push(entity);
-                }
-                entity.portal = direccion;
-                this.actualizarPortal(entity);
-            }
-        }
-        for (let y = 0; y<darkRows.length; y++) {
-            for (let x = 0; x<darkRows[y].length; x++){
-                const thistile = darkRows[y][x];                
-                switch(thistile) {
-                    case "0":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 0).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "1":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 1).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "2":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 2).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "3":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 3).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "4":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 4).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "5":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 5).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "6":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 6).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "7":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 7).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "8":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 8).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "9":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 9).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "a":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 10).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "b":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 11).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "c":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 12).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "d":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 13).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "e":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 14).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "f":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 15).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "g":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 16).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "h":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 17).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "i":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 18).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "j":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 19).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "k":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 20).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "l":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 21).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "m":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 22).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "n":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 23).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "o":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 24).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "p":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 25).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "q":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 26).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "r":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 27).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "s":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 28).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "t":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 29).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "u":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 30).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "v":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 31).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "w":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 32).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "x":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 33).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "y":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 34).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "z":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 35).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "A":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 36).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "B":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 42).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "C":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 48).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "D":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 54).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "E":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 55).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "F":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 56).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "G":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 57).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "H":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 58).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "I":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 59).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "J":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 60).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "K":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 61).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "L":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 62).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "M":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 63).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "N":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 64).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "O":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 65).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "P":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 72).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "Q":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 73).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "R":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 74).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "S":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 75).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "T":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 76).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "U":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 77).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "V":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 78).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "W":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 79).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "X":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 80).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "Y":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 81).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "Z":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 82).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "!":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 83).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "?":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 90).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                    case "@":
-                        this.add.sprite(this.offsetX+x*16*this.pixelmultiplier, this.offsetY+y*16*this.pixelmultiplier, "dark", 96).setOrigin(1,1).setScale(this.pixelmultiplier).setDepth(90);
-                        break;
-                }
-            }
-        }
-        for (let y = 0; y<directionRows.length; y++) {
-            for (let x = 0; x<directionRows[y].length; x++){
-                const thistile = directionRows[y][x];
-                let entity = this.getAnythingAt(x, y);
-                if (entity && thistile !== "." && (entity.portal !== undefined || entity.type === "goal" || entity.type === "laserEmissor")){
-                    entity.group = Number(thistile);
-                }
+        for (let y = 0; y < filas; y++) {
+            for (let x = 0; x < columnas; x++) {
+                this.add.sprite(
+                    this.offsetX + x * this.tilesize,
+                    this.offsetY + y * this.tilesize,
+                    "tileset-fogo",
+                    14
+                ).setOrigin(1, 1)
+                    .setScale(this.pixelmultiplier)
+                    .setDepth(-1);
             }
         }
 
-        for (let y = 0; y < plateControlRows.length; y++) {
-            for (let x = 0; x < plateControlRows[y].length; x++) {
-                const code = plateControlRows[y][x];
-                if (code === ".") {
-                    continue;
-                }
-                for (let i = 0; i < this.entities.length; i++) {
-                    const entity = this.entities[i];
-                    if (entity.type === "goal" && entity.x === x && entity.y === y) {
-                        entity.controlGroup = code;
-                    }
-                }
-            }
-        }
-
-        for (let y = 0; y < emitterControlRows.length; y++) {
-            for (let x = 0; x < emitterControlRows[y].length; x++) {
-                const code = emitterControlRows[y][x];
-                if (code === ".") {
-                    continue;
-                }
-                for (let i = 0; i < this.entities.length; i++) {
-                    const entity = this.entities[i];
-                    if (entity.type === "laserEmissor" && entity.x === x && entity.y === y) {
-                        entity.controlGroup = code;
-                    }
-                }
-            }
+        for (let i = 0; i < level.length; i++) {
+            this.crearEntidadNivel(level[i]);
         }
 
         for (let i = 0; i < this.entities.length; i++) {
